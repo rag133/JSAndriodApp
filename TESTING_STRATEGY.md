@@ -4,6 +4,9 @@
 
 ### 1. Development Testing Commands
 
+netstat -ano | findstr :8081
+taskkill /PID 8124 /F
+
 ```bash
 # Navigate to mobile app
 cd C:\JeevanSaathi
