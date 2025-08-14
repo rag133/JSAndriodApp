@@ -30,6 +30,7 @@ interface TaskDetailsModalEmailUIProps {
   task: Task | null;
   lists: List[];
   tags: Tag[];
+  tasks: Task[]; // Add tasks prop to access all tasks for subtask lookup
   onSave: (task: Task) => Promise<void>;
   onDelete?: (taskId: string) => Promise<void>;
   onClose: () => void;
@@ -40,6 +41,7 @@ const TaskDetailsModalEmailUI: React.FC<TaskDetailsModalEmailUIProps> = ({
   task,
   lists,
   tags,
+  tasks,
   onSave,
   onDelete,
   onClose,
@@ -51,12 +53,11 @@ const TaskDetailsModalEmailUI: React.FC<TaskDetailsModalEmailUIProps> = ({
       title: '',
       description: '',
       completed: false,
-      priority: 'P3',
+      priority: 3, // Use number format to match web app
       tags: [],
       listId: lists[0]?.id || '',
       createdAt: new Date(),
       updatedAt: new Date(),
-      subtasks: [],
     }
   );
 
@@ -70,13 +71,13 @@ const TaskDetailsModalEmailUI: React.FC<TaskDetailsModalEmailUIProps> = ({
   // Auto-save manager
   const autoSaveManager = useRef(new AutoSaveManager()).current;
 
-  // Priority options with updated colors
+  // Priority options with updated colors (number format to match web app)
   const priorityOptions = [
-    { value: 'P1', label: 'Urgent', color: '#FF3B30', icon: '🚩' }, // Red for high/urgent
-    { value: 'P2', label: 'High', color: '#FF3B30', icon: '🚩' },   // Red for high
-    { value: 'P3', label: 'Medium', color: '#FFCC00', icon: '🚩' }, // Yellow for medium
-    { value: 'P4', label: 'Low', color: '#007AFF', icon: '🚩' },    // Blue for low
-    { value: '', label: 'No Priority', color: '#C7C7CC', icon: '🏳️' }, // Light grey for none
+    { value: 1, label: 'Urgent', color: '#FF3B30', icon: '🚩' }, // Red for high/urgent
+    { value: 2, label: 'High', color: '#FF3B30', icon: '🚩' },   // Red for high
+    { value: 3, label: 'Medium', color: '#FFCC00', icon: '🚩' }, // Yellow for medium
+    { value: 4, label: 'Low', color: '#007AFF', icon: '🚩' },    // Blue for low
+    { value: undefined, label: 'No Priority', color: '#C7C7CC', icon: '🏳️' }, // Light grey for none
   ];
 
   // Initialize auto-save
@@ -171,37 +172,74 @@ const TaskDetailsModalEmailUI: React.FC<TaskDetailsModalEmailUIProps> = ({
     updateField('tags', newTags);
   };
 
-  // Handle subtask addition
-  const handleAddSubtask = () => {
-    if (!newSubtaskTitle.trim()) return;
+  // Handle subtask addition - Create new task with parentId
+  const handleAddSubtask = async () => {
+    if (!newSubtaskTitle.trim() || !editedTask.id) return;
     
-    const newSubtask = {
-      id: Date.now().toString(),
-      title: newSubtaskTitle.trim(),
-      completed: false,
-    };
-    
-    const currentSubtasks = editedTask.subtasks || [];
-    updateField('subtasks', [...currentSubtasks, newSubtask]);
-    setNewSubtaskTitle('');
+    try {
+      // Create new subtask as a separate task with parentId
+      const newSubtaskId = await taskService.add({
+        title: newSubtaskTitle.trim(),
+        listId: editedTask.listId,
+        completed: false,
+        priority: 3, // Default priority
+        tags: [],
+        parentId: editedTask.id, // Link to parent task
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      
+      // Clear input
+      setNewSubtaskTitle('');
+      
+      // Refresh the parent component to show new subtask
+      // The parent will re-fetch tasks and display the new subtask
+      if (onSave) {
+        await onSave(editedTask);
+      }
+    } catch (error: any) {
+      console.error('Error adding subtask:', error);
+      Alert.alert('Error', `Failed to add subtask: ${error.message}`);
+    }
   };
 
-  // Handle subtask toggle
-  const handleSubtaskToggle = (subtaskId: string) => {
-    const currentSubtasks = editedTask.subtasks || [];
-    const updatedSubtasks = currentSubtasks.map(subtask =>
-      subtask.id === subtaskId
-        ? { ...subtask, completed: !subtask.completed }
-        : subtask
-    );
-    updateField('subtasks', updatedSubtasks);
+  // Handle subtask toggle - Update the actual subtask task
+  const handleSubtaskToggle = async (subtaskId: string) => {
+    try {
+      // Find the subtask in the tasks array
+      const subtask = tasks.find(t => t.id === subtaskId);
+      if (!subtask) return;
+      
+      // Update the subtask completion status
+      await taskService.update(subtaskId, {
+        completed: !subtask.completed,
+        updatedAt: new Date()
+      });
+      
+      // Refresh the parent component to show updated subtask
+      if (onSave) {
+        await onSave(editedTask);
+      }
+    } catch (error: any) {
+      console.error('Error updating subtask:', error);
+      Alert.alert('Error', `Failed to update subtask: ${error.message}`);
+    }
   };
 
-  // Handle subtask deletion
-  const handleSubtaskDelete = (subtaskId: string) => {
-    const currentSubtasks = editedTask.subtasks || [];
-    const updatedSubtasks = currentSubtasks.filter(subtask => subtask.id !== subtaskId);
-    updateField('subtasks', updatedSubtasks);
+  // Handle subtask deletion - Delete the actual subtask task
+  const handleSubtaskDelete = async (subtaskId: string) => {
+    try {
+      // Delete the subtask
+      await taskService.delete(subtaskId);
+      
+      // Refresh the parent component to show updated subtask list
+      if (onSave) {
+        await onSave(editedTask);
+      }
+    } catch (error: any) {
+      console.error('Error deleting subtask:', error);
+      Alert.alert('Error', `Failed to delete subtask: ${error.message}`);
+    }
   };
 
   // Handle delete
@@ -358,32 +396,37 @@ const TaskDetailsModalEmailUI: React.FC<TaskDetailsModalEmailUIProps> = ({
             <View style={styles.layer5}>
               <Text style={styles.sectionTitle}>Subtasks</Text>
               
-              {editedTask.subtasks?.map((subtask) => (
-                <View key={subtask.id} style={styles.subtaskRow}>
-                  <TouchableOpacity 
-                    onPress={() => handleSubtaskToggle(subtask.id)}
-                    style={styles.subtaskCheckbox}
-                  >
-                    <View style={[styles.checkbox, styles.subtaskCheckboxSmall, subtask.completed && styles.checkboxCompleted]}>
-                      {subtask.completed && <Text style={styles.checkboxCheckSmall}>✓</Text>}
-                    </View>
-                  </TouchableOpacity>
-                  
-                  <Text style={[
-                    styles.subtaskTitle,
-                    subtask.completed && styles.subtaskTitleCompleted
-                  ]}>
-                    {subtask.title}
-                  </Text>
-                  
-                  <TouchableOpacity 
-                    onPress={() => handleSubtaskDelete(subtask.id)}
-                    style={styles.subtaskDeleteButton}
-                  >
-                    <Text style={styles.subtaskDeleteIcon}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {/* Get subtasks from parentId structure (web app) */}
+              {(() => {
+                // Find all tasks that have this task as parent
+                const subtasks = tasks.filter(t => t.parentId === editedTask.id);
+                return subtasks.map((subtask) => (
+                  <View key={subtask.id} style={styles.subtaskRow}>
+                    <TouchableOpacity 
+                      onPress={() => handleSubtaskToggle(subtask.id)}
+                      style={styles.subtaskCheckbox}
+                    >
+                      <View style={[styles.checkbox, styles.subtaskCheckboxSmall, subtask.completed && styles.checkboxCompleted]}>
+                        {subtask.completed && <Text style={styles.checkboxCheckSmall}>✓</Text>}
+                      </View>
+                    </TouchableOpacity>
+                    
+                    <Text style={[
+                      styles.subtaskTitle,
+                      subtask.completed && styles.subtaskTitleCompleted
+                    ]}>
+                      {subtask.title}
+                    </Text>
+                    
+                    <TouchableOpacity 
+                      onPress={() => handleSubtaskDelete(subtask.id)}
+                      style={styles.subtaskDeleteButton}
+                    >
+                      <Text style={styles.subtaskDeleteIcon}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ));
+              })()}
               
               <View style={styles.addSubtaskRow}>
                 <View style={[styles.checkbox, styles.subtaskCheckboxSmall, styles.addSubtaskCheckbox]}>

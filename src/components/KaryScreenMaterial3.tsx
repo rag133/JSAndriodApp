@@ -1078,3 +1078,4 @@ const styles = StyleSheet.create({
 });
 
 export default KaryScreenMaterial3;
+

@@ -11,9 +11,11 @@ import {
   RefreshControl,
   StatusBar,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { taskService, listService, tagService } from '../services/dataService';
-import { Task, List, Tag, Subtask } from '../types/kary';
+import { Task, List, Tag } from '../types/kary';
 import SimpleDrawer from '../navigation/SimpleDrawerNavigator';
 import { useFilter } from '../contexts/FilterContext';
 import TaskDetailsModalEmailUI from './TaskDetailsModalEmailUI';
@@ -54,7 +56,23 @@ const KaryScreenCompact = () => {
   const [showTaskDetails, setShowTaskDetails] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   
-  const { filterState, getFilterTitle } = useFilter();
+  // Quick add panel state
+  const [showQuickAddPanel, setShowQuickAddPanel] = useState(false);
+  const [quickAddTask, setQuickAddTask] = useState({
+    title: '',
+    dueDate: undefined as Date | undefined,
+    priority: 3 as 1 | 2 | 3 | 4,
+    tags: [] as string[],
+    listId: ''
+  });
+  const [showQuickAddDatePicker, setShowQuickAddDatePicker] = useState(false);
+  const [showQuickAddPriorityMenu, setShowQuickAddPriorityMenu] = useState(false);
+      const [showQuickAddTagsMenu, setShowQuickAddTagsMenu] = useState(false);
+    const [showQuickAddListsMenu, setShowQuickAddListsMenu] = useState(false);
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    
+    const { filterState, getFilterTitle } = useFilter();
 
   useEffect(() => {
     loadData();
@@ -75,6 +93,14 @@ const KaryScreenCompact = () => {
       
       if (!selectedListId && listsData.length > 0) {
         setSelectedListId(listsData[0].id);
+      }
+      
+      // Set default list for quick add
+      if (listsData.length > 0) {
+        setQuickAddTask(prev => ({
+          ...prev,
+          listId: selectedListId || listsData[0].id
+        }));
       }
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -99,9 +125,10 @@ const KaryScreenCompact = () => {
         title: newTaskTitle.trim(),
         listId: selectedListId,
         completed: false,
-        priority: 3,
+        priority: 3, // Use number priority format to match web app
         tags: [],
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
       
       setNewTaskTitle('');
@@ -112,6 +139,90 @@ const KaryScreenCompact = () => {
     }
   };
 
+  // Quick add task function
+  const handleQuickAddTask = async () => {
+    if (!quickAddTask.title.trim()) {
+      Alert.alert('Error', 'Please enter a task title');
+      return;
+    }
+
+    if (!quickAddTask.listId) {
+      Alert.alert('Error', 'Please select a list first');
+      return;
+    }
+
+    try {
+      await taskService.add({
+        title: quickAddTask.title.trim(),
+        listId: quickAddTask.listId,
+        completed: false,
+        priority: quickAddTask.priority,
+        tags: quickAddTask.tags,
+        dueDate: quickAddTask.dueDate,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      
+      // Reset quick add form
+      setQuickAddTask({
+        title: '',
+        dueDate: undefined,
+        priority: 3,
+        tags: [],
+        listId: quickAddTask.listId // Keep the same list
+      });
+      
+      setShowQuickAddPanel(false);
+      loadData();
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  // Quick add panel handlers
+      const handleQuickAddDateChange = (date: Date) => {
+      setQuickAddTask(prev => ({ ...prev, dueDate: date }));
+      // Don't close modal automatically - let user choose when to close
+    };
+
+    const handleMonthChange = (direction: 'prev' | 'next') => {
+      const newMonth = new Date(currentMonth);
+      if (direction === 'prev') {
+        newMonth.setMonth(newMonth.getMonth() - 1);
+      } else {
+        newMonth.setMonth(newMonth.getMonth() + 1);
+      }
+      setCurrentMonth(newMonth);
+    };
+
+    const handleTimeChange = (hour: number, minute: number) => {
+      if (quickAddTask.dueDate) {
+        const newDate = new Date(quickAddTask.dueDate);
+        newDate.setHours(hour, minute, 0, 0);
+        setQuickAddTask(prev => ({ ...prev, dueDate: newDate }));
+      }
+      setShowTimePicker(false);
+    };
+
+  const handleQuickAddPriorityChange = (priority: 1 | 2 | 3 | 4) => {
+    setQuickAddTask(prev => ({ ...prev, priority }));
+    setShowQuickAddPriorityMenu(false);
+  };
+
+  const handleQuickAddTagToggle = (tagId: string) => {
+    setQuickAddTask(prev => ({
+      ...prev,
+      tags: prev.tags.includes(tagId)
+        ? prev.tags.filter(id => id !== tagId)
+        : [...prev.tags, tagId]
+    }));
+  };
+
+  const handleQuickAddListChange = (listId: string) => {
+    setQuickAddTask(prev => ({ ...prev, listId }));
+    setShowQuickAddListsMenu(false);
+  };
+
   const handleCompleteTask = async (taskId: string, completed: boolean) => {
     try {
       const updatedTasks = tasks.map(task => 
@@ -119,16 +230,24 @@ const KaryScreenCompact = () => {
           ? { 
               ...task, 
               completed: !completed,
-              completionDate: !completed ? new Date() : undefined,
+              completionDate: !completed ? new Date() : null,
             }
           : task
       );
       setTasks(updatedTasks);
 
-      await taskService.update(taskId, { 
+      // Prepare update data - only include defined values
+      const updateData: Partial<Task> = { 
         completed: !completed,
-        completionDate: !completed ? new Date() : undefined,
-      });
+      };
+      
+      if (!completed) {
+        updateData.completionDate = new Date();
+      } else {
+        updateData.completionDate = null;
+      }
+
+      await taskService.update(taskId, updateData);
     } catch (error: any) {
       console.error('Error updating task completion:', error);
       loadData();
@@ -136,24 +255,26 @@ const KaryScreenCompact = () => {
     }
   };
 
-  const handleCompleteSubtask = async (taskId: string, subtaskId: string, completed: boolean) => {
+  const handleCompleteSubtask = async (parentTaskId: string, subtaskId: string, completed: boolean) => {
     try {
-      const task = tasks.find(t => t.id === taskId);
-      if (!task || !task.subtasks) return;
+      // Find the subtask (child task) and update it directly
+      const subtask = tasks.find(t => t.id === subtaskId);
+      if (!subtask || subtask.parentId !== parentTaskId) return;
 
-      const updatedSubtasks = task.subtasks.map(subtask =>
-        subtask.id === subtaskId 
-          ? { ...subtask, completed: !completed }
-          : subtask
-      );
+      // Update the subtask directly
+      await taskService.update(subtaskId, { 
+        completed: !completed,
+        updatedAt: new Date()
+      });
 
-      const updatedTask = { ...task, subtasks: updatedSubtasks };
-      
+      // Update local state
       setTasks(prevTasks => 
-        prevTasks.map(t => t.id === taskId ? updatedTask : t)
+        prevTasks.map(t => 
+          t.id === subtaskId 
+            ? { ...t, completed: !completed }
+            : t
+        )
       );
-
-      await taskService.update(taskId, { subtasks: updatedSubtasks });
     } catch (error: any) {
       console.error('Error updating subtask:', error);
       loadData();
@@ -185,13 +306,11 @@ const KaryScreenCompact = () => {
 
   const handleTaskSave = async (updatedTask: Task) => {
     try {
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.id === updatedTask.id ? updatedTask : task
-        )
-      );
-
+      // Update the main task
       await taskService.update(updatedTask.id, updatedTask);
+      
+      // Refresh all data to show any new/updated subtasks
+      await loadData();
     } catch (error: any) {
       console.error('Error saving task:', error);
       loadData();
@@ -208,9 +327,12 @@ const KaryScreenCompact = () => {
     }
   };
 
-  // Smart filtering
+
+
+  // Smart filtering - Only show main tasks (not subtasks)
   const getFilteredTasks = () => {
-    let filtered = tasks;
+    // Filter out subtasks (tasks with parentId) - only show main tasks
+    let filtered = tasks.filter(task => !task.parentId);
     const { activeFilter } = filterState.kary;
 
     const today = new Date();
@@ -294,9 +416,21 @@ const KaryScreenCompact = () => {
   const completedCount = filteredTasks.filter(task => task.completed).length;
   const totalCount = filteredTasks.length;
 
+    // Helper function to get all subtasks for a task (web app structure)
+  const getTaskSubtasks = (task: Task): Task[] => {
+    // Get child tasks with parentId (web app structure)
+    return tasks.filter(t => t.parentId === task.id);
+  };
+
+  // Helper function to check if a task has subtasks (web app structure)
+  const hasTaskSubtasks = (task: Task): boolean => {
+    return getTaskSubtasks(task).length > 0;
+  };
+
   const renderTaskItem = (task: Task, isSubtask = false, parentTaskId?: string) => {
     const isExpanded = expandedTasks.has(task.id);
-    const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+    const hasSubtasks = hasTaskSubtasks(task);
+    const taskSubtasks = getTaskSubtasks(task);
     
     return (
       <View key={task.id}>
@@ -340,7 +474,7 @@ const KaryScreenCompact = () => {
               ]}>
                 {task.title}
               </Text>
-              
+               
               {/* Task Meta - only for main tasks */}
               {!isSubtask && (
                 <View style={styles.taskMeta}>
@@ -352,14 +486,14 @@ const KaryScreenCompact = () => {
                       {formatDueDate(task.dueDate)}
                     </Text>
                   )}
-                  
+                   
                   {task.priority && task.priority > 0 && (
                     <View style={[
                       styles.priorityFlag,
                       { backgroundColor: getPriorityColor(task.priority) }
                     ]} />
                   )}
-                  
+                   
                   {task.tags && task.tags.length > 0 && (
                     <Text style={styles.tagCount}>
                       {task.tags.length} tag{task.tags.length > 1 ? 's' : ''}
@@ -382,6 +516,8 @@ const KaryScreenCompact = () => {
               </Text>
             </TouchableOpacity>
           )}
+
+          
           
           {/* Three-dot menu for main tasks */}
           {!isSubtask && (
@@ -398,7 +534,7 @@ const KaryScreenCompact = () => {
         {/* Subtasks */}
         {!isSubtask && hasSubtasks && isExpanded && (
           <View style={styles.subtasksContainer}>
-            {task.subtasks!.map((subtask) => (
+            {taskSubtasks.map((subtask) => (
               renderTaskItem(subtask, true, task.id)
             ))}
           </View>
@@ -476,76 +612,589 @@ const KaryScreenCompact = () => {
         )}
       </ScrollView>
 
-      {/* Compact FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setShowAddTask(true)}
-        disabled={!selectedListId}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
+                          {/* Compact FAB */}
+             <TouchableOpacity
+               style={styles.fab}
+               onPress={() => setShowQuickAddPanel(true)}
+               disabled={!selectedListId}
+               activeOpacity={0.8}
+             >
+               <Text style={styles.fabIcon}>+</Text>
+             </TouchableOpacity>
 
-      {/* Add Task Modal */}
-      <Modal visible={showAddTask} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Add New Task</Text>
-              
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter task title..."
-                placeholderTextColor={CompactColors.textMuted}
-                value={newTaskTitle}
-                onChangeText={setNewTaskTitle}
-                autoFocus
-              />
-              
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => {
-                    setShowAddTask(false);
-                    setNewTaskTitle('');
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.addButton]}
-                  onPress={handleAddTask}
-                >
-                  <Text style={styles.addButtonText}>Add Task</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
+             {/* Quick Add Modal */}
+             <Modal 
+               visible={showQuickAddPanel} 
+               transparent 
+               animationType="slide"
+               onRequestClose={() => setShowQuickAddPanel(false)}
+             >
+               <TouchableOpacity 
+                 style={styles.quickAddModalOverlay}
+                 activeOpacity={1}
+                 onPress={() => setShowQuickAddPanel(false)}
+               >
+                 <View style={styles.quickAddModalContent} onStartShouldSetResponder={() => true}>
+                   {/* Header */}
+                   <View style={styles.quickAddModalHeader}>
+                     <Text style={styles.quickAddModalTitle}>Create a task</Text>
+                     <TouchableOpacity 
+                       style={styles.quickAddModalCloseButton}
+                       onPress={() => setShowQuickAddPanel(false)}
+                     >
+                       <Text style={styles.quickAddModalCloseIcon}>✕</Text>
+                     </TouchableOpacity>
+                   </View>
+                   
+                   {/* Task Title Input */}
+                   <View style={styles.quickAddModalInputRow}>
+                     <TextInput
+                       style={styles.quickAddModalInput}
+                       placeholder="What would you like to do?"
+                       placeholderTextColor={CompactColors.textMuted}
+                       value={quickAddTask.title}
+                       onChangeText={(text) => setQuickAddTask(prev => ({ ...prev, title: text }))}
+                       autoFocus
+                       multiline={false}
+                     />
+                   </View>
+                   
+                   {/* Action Icons Row */}
+                   <View style={styles.quickAddModalIconsRow}>
+                     <TouchableOpacity 
+                       style={styles.quickAddModalIconButton}
+                       onPress={() => setShowQuickAddDatePicker(true)}
+                     >
+                       <Text style={styles.quickAddModalIcon}>📅</Text>
+                     </TouchableOpacity>
+                     
+                     <TouchableOpacity 
+                       style={styles.quickAddModalIconButton}
+                       onPress={() => setShowQuickAddPriorityMenu(true)}
+                     >
+                       <Text style={styles.quickAddModalIcon}>🚩</Text>
+                     </TouchableOpacity>
+                     
+                     <TouchableOpacity 
+                       style={styles.quickAddModalIconButton}
+                       onPress={() => setShowQuickAddTagsMenu(true)}
+                     >
+                       <Text style={styles.quickAddModalIcon}>🏷️</Text>
+                     </TouchableOpacity>
+                     
+                     <TouchableOpacity 
+                       style={styles.quickAddModalIconButton}
+                       onPress={() => setShowQuickAddListsMenu(true)}
+                     >
+                       <Text style={styles.quickAddModalIcon}>📋</Text>
+                     </TouchableOpacity>
+                     
+                     <TouchableOpacity 
+                       style={styles.quickAddModalIconButton}
+                       onPress={() => {/* More options */}}
+                     >
+                       <Text style={styles.quickAddModalIcon}>⋯</Text>
+                     </TouchableOpacity>
+                   </View>
+                   
+                   {/* Add Button */}
+                   <TouchableOpacity
+                     style={styles.quickAddModalButton}
+                     onPress={handleQuickAddTask}
+                     disabled={!quickAddTask.title.trim()}
+                   >
+                     <Text style={styles.quickAddModalButtonText}>Add</Text>
+                   </TouchableOpacity>
+                 </View>
+               </TouchableOpacity>
+             </Modal>
 
-      {/* Drawer */}
-      <SimpleDrawer
-        isVisible={showDrawer}
-        onClose={() => setShowDrawer(false)}
-        currentModule="Kary"
-        onModuleChange={() => setShowDrawer(false)}
-      />
+                      {/* Quick Add Menus */}
+                      {/* Simple Calendar Modal */}
+                      <Modal
+                        visible={showQuickAddDatePicker}
+                        transparent={true}
+                        animationType="fade"
+                        onRequestClose={() => setShowQuickAddDatePicker(false)}
+                      >
+                        <TouchableOpacity 
+                          style={styles.modalOverlay}
+                          activeOpacity={1}
+                          onPress={() => setShowQuickAddDatePicker(false)}
+                        >
+                          <View style={styles.dateTimePickerContent} onStartShouldSetResponder={() => true}>
+                            {/* Header */}
+                            <View style={styles.dateTimePickerHeader}>
+                              <Text style={styles.dateTimePickerTitle}>Select Date</Text>
+                              <TouchableOpacity 
+                                style={styles.timePickerCloseButton}
+                                onPress={() => setShowQuickAddDatePicker(false)}
+                              >
+                                <Text style={styles.timePickerCloseIcon}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
+                            
+                            {/* Quick Date Selection */}
+                            <View style={styles.quickDateSelectionRow}>
+                              <TouchableOpacity 
+                                style={styles.quickDateSelectionItem}
+                                onPress={() => {
+                                  const today = new Date();
+                                  handleQuickAddDateChange(today);
+                                  setShowQuickAddDatePicker(false);
+                                }}
+                              >
+                                <View style={styles.quickDateIcon}>
+                                  <Text style={styles.quickDateIconText}>📅</Text>
+                                </View>
+                                <Text style={styles.quickDateSelectionText}>Today</Text>
+                              </TouchableOpacity>
+                              
+                              <TouchableOpacity 
+                                style={styles.quickDateSelectionItem}
+                                onPress={() => {
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  handleQuickAddDateChange(tomorrow);
+                                  setShowQuickAddDatePicker(false);
+                                }}
+                              >
+                                <View style={styles.quickDateIcon}>
+                                  <Text style={styles.quickDateIconText}>📅</Text>
+                                </View>
+                                <Text style={styles.quickDateSelectionText}>Tomorrow</Text>
+                              </TouchableOpacity>
+                              
+                              <TouchableOpacity 
+                                style={styles.quickDateSelectionItem}
+                                onPress={() => {
+                                  const nextWeek = new Date();
+                                  nextWeek.setDate(nextWeek.getDate() + 7);
+                                  handleQuickAddDateChange(nextWeek);
+                                  setShowQuickAddDatePicker(false);
+                                }}
+                              >
+                                <View style={styles.quickDateIcon}>
+                                  <Text style={styles.quickDateIconText}>📅</Text>
+                                </View>
+                                <Text style={styles.quickDateSelectionText}>Next Week</Text>
+                              </TouchableOpacity>
+                            </View>
+                            
+                            {/* Calendar */}
+                            <View style={styles.calendarContainer}>
+                              <View style={styles.calendarHeader}>
+                                <TouchableOpacity 
+                                  style={styles.calendarNavButton}
+                                  onPress={() => handleMonthChange('prev')}
+                                >
+                                  <Text style={styles.calendarNavIcon}>‹</Text>
+                                </TouchableOpacity>
+                                
+                                <Text style={styles.calendarMonthText}>
+                                  {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                </Text>
+                                
+                                <TouchableOpacity 
+                                  style={styles.calendarNavButton}
+                                  onPress={() => handleMonthChange('next')}
+                                >
+                                  <Text style={styles.calendarNavIcon}>›</Text>
+                                </TouchableOpacity>
+                              </View>
+                              
+                              {/* Days of Week */}
+                              <View style={styles.calendarDaysHeader}>
+                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                                  <Text key={day} style={styles.calendarDayHeader}>{day}</Text>
+                                ))}
+                              </View>
+                              
+                              {/* Calendar Grid */}
+                              <View style={styles.calendarGrid}>
+                                {(() => {
+                                  const today = new Date();
+                                  const displayMonth = currentMonth.getMonth();
+                                  const displayYear = currentMonth.getFullYear();
+                                  const firstDay = new Date(displayYear, displayMonth, 1);
+                                  const lastDay = new Date(displayYear, displayMonth + 1, 0);
+                                  const startDate = new Date(firstDay);
+                                  startDate.setDate(startDate.getDate() - firstDay.getDay());
+                                  
+                                  const calendarDays = [];
+                                  for (let i = 0; i < 42; i++) {
+                                    const date = new Date(startDate);
+                                    date.setDate(startDate.getDate() + i);
+                                    const isCurrentMonth = date.getMonth() === displayMonth;
+                                    const isToday = date.toDateString() === today.toDateString();
+                                    const isSelected = quickAddTask.dueDate && date.toDateString() === quickAddTask.dueDate.toDateString();
+                                    
+                                    calendarDays.push(
+                                      <TouchableOpacity
+                                        key={i}
+                                        style={[
+                                          styles.calendarDay,
+                                          isCurrentMonth && styles.calendarDayCurrentMonth,
+                                          isToday && styles.calendarDayToday,
+                                          isSelected && styles.calendarDaySelected
+                                        ]}
+                                        onPress={() => {
+                                          if (isCurrentMonth) {
+                                            handleQuickAddDateChange(date);
+                                            setShowQuickAddDatePicker(false);
+                                          }
+                                        }}
+                                        disabled={!isCurrentMonth}
+                                      >
+                                        <Text style={[
+                                          styles.calendarDayText,
+                                          isCurrentMonth && styles.calendarDayTextCurrentMonth,
+                                          isToday && styles.calendarDayTextToday,
+                                          isSelected && styles.calendarDayTextSelected
+                                        ]}>
+                                          {date.getDate()}
+                                        </Text>
+                                      </TouchableOpacity>
+                                    );
+                                  }
+                                  return calendarDays;
+                                })()}
+                              </View>
+                            </View>
+                            
+                            {/* Footer Buttons */}
+                            <View style={styles.dateTimePickerFooter}>
+                              <TouchableOpacity 
+                                style={styles.dateTimePickerFooterButton}
+                                onPress={() => {
+                                  setQuickAddTask(prev => ({ ...prev, dueDate: undefined }));
+                                  setShowQuickAddDatePicker(false);
+                                }}
+                              >
+                                <Text style={styles.dateTimePickerFooterButtonText}>CLEAR</Text>
+                              </TouchableOpacity>
+                              
+                              <TouchableOpacity 
+                                style={styles.dateTimePickerFooterButton}
+                                onPress={() => setShowQuickAddDatePicker(false)}
+                              >
+                                <Text style={styles.dateTimePickerFooterButtonText}>CANCEL</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      </Modal>
 
-      {/* Task Details Modal */}
-      <TaskDetailsModalEmailUI
-        visible={showTaskDetails}
-        task={selectedTask}
-        onClose={closeTaskDetails}
-        onSave={handleTaskSave}
-        onDelete={handleTaskDelete}
-        lists={lists}
-        tags={tags}
-      />
-    </View>
-  );
-};
+             {/* Time Picker Modal */}
+             {showTimePicker && (
+               <Modal
+                 visible={showTimePicker}
+                 transparent={true}
+                 animationType="fade"
+                 onRequestClose={() => setShowTimePicker(false)}
+               >
+                 <TouchableOpacity 
+                   style={styles.modalOverlay}
+                   activeOpacity={1}
+                   onPress={() => setShowTimePicker(false)}
+                 >
+                   <View style={styles.timePickerContent} onStartShouldSetResponder={() => true}>
+                     {/* Header */}
+                     <View style={styles.timePickerHeader}>
+                       <Text style={styles.timePickerTitle}>Select Time</Text>
+                       <TouchableOpacity 
+                         style={styles.timePickerCloseButton}
+                         onPress={() => setShowTimePicker(false)}
+                       >
+                         <Text style={styles.timePickerCloseIcon}>✕</Text>
+                       </TouchableOpacity>
+                     </View>
+                     
+                     {/* Quick Time Options */}
+                     <View style={styles.quickTimeOptions}>
+                       <TouchableOpacity 
+                         style={styles.quickTimeOption}
+                         onPress={() => handleTimeChange(9, 0)}
+                       >
+                         <Text style={styles.quickTimeOptionText}>9:00 AM</Text>
+                       </TouchableOpacity>
+                       <TouchableOpacity 
+                         style={styles.quickTimeOption}
+                         onPress={() => handleTimeChange(12, 0)}
+                       >
+                         <Text style={styles.quickTimeOptionText}>12:00 PM</Text>
+                       </TouchableOpacity>
+                       <TouchableOpacity 
+                         style={styles.quickTimeOption}
+                         onPress={() => handleTimeChange(15, 0)}
+                       >
+                         <Text style={styles.quickTimeOptionText}>3:00 PM</Text>
+                       </TouchableOpacity>
+                       <TouchableOpacity 
+                         style={styles.quickTimeOption}
+                         onPress={() => handleTimeChange(18, 0)}
+                       >
+                         <Text style={styles.quickTimeOptionText}>6:00 PM</Text>
+                       </TouchableOpacity>
+                     </View>
+                     
+                     {/* Custom Time Input */}
+                     <View style={styles.customTimeSection}>
+                       <Text style={styles.customTimeLabel}>Custom Time</Text>
+                       <View style={styles.timeInputRow}>
+                         <View style={styles.timeInputContainer}>
+                           <Text style={styles.timeInputLabel}>Hour</Text>
+                           <TextInput
+                             style={styles.timeInput}
+                             placeholder="12"
+                             keyboardType="numeric"
+                             maxLength={2}
+                             defaultValue="12"
+                           />
+                         </View>
+                         <Text style={styles.timeInputSeparator}>:</Text>
+                         <View style={styles.timeInputContainer}>
+                           <Text style={styles.timeInputLabel}>Minute</Text>
+                           <TextInput
+                             style={styles.timeInput}
+                             placeholder="00"
+                             keyboardType="numeric"
+                             maxLength={2}
+                             defaultValue="00"
+                           />
+                         </View>
+                         <View style={styles.ampmContainer}>
+                           <TouchableOpacity 
+                             style={[
+                               styles.ampmButton,
+                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() < 12) && 
+                               styles.ampmButtonActive
+                             ]}
+                             onPress={() => {
+                               if (quickAddTask.dueDate) {
+                                 const currentHour = quickAddTask.dueDate.getHours();
+                                 const currentMinute = quickAddTask.dueDate.getMinutes();
+                                 const newHour = currentHour >= 12 ? currentHour - 12 : currentHour;
+                                 if (newHour === 0) newHour = 12;
+                                 handleTimeChange(newHour, currentMinute);
+                               }
+                             }}
+                           >
+                             <Text style={[
+                               styles.ampmButtonText,
+                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() < 12) && 
+                               styles.ampmButtonTextActive
+                             ]}>AM</Text>
+                           </TouchableOpacity>
+                           <TouchableOpacity 
+                             style={[
+                               styles.ampmButton,
+                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() >= 12) && 
+                               styles.ampmButtonTextActive
+                             ]}
+                             onPress={() => {
+                               if (quickAddTask.dueDate) {
+                                 const currentHour = quickAddTask.dueDate.getHours();
+                                 const currentMinute = quickAddTask.dueDate.getMinutes();
+                                 const newHour = currentHour < 12 ? currentHour + 12 : currentHour;
+                                 if (newHour === 24) newHour = 12;
+                                 handleTimeChange(newHour, currentMinute);
+                               }
+                             }}
+                           >
+                             <Text style={[
+                               styles.ampmButtonText,
+                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() >= 12) && 
+                               styles.ampmButtonTextActive
+                             ]}>PM</Text>
+                           </TouchableOpacity>
+                         </View>
+                       </View>
+                     </View>
+                     
+                     {/* Footer */}
+                     <View style={styles.timePickerFooter}>
+                       <TouchableOpacity 
+                         style={styles.timePickerFooterButton}
+                         onPress={() => setShowTimePicker(false)}
+                       >
+                         <Text style={styles.timePickerFooterButtonText}>Cancel</Text>
+                       </TouchableOpacity>
+                       <TouchableOpacity 
+                         style={styles.timePickerFooterButton}
+                         onPress={() => setShowTimePicker(false)}
+                       >
+                         <Text style={styles.timePickerFooterButtonText}>OK</Text>
+                       </TouchableOpacity>
+                     </View>
+                   </View>
+                 </TouchableOpacity>
+               </Modal>
+             )}
+ 
+             {showQuickAddPriorityMenu && (
+             <Modal 
+               visible={true} 
+               transparent 
+               animationType="fade"
+               onRequestClose={() => setShowQuickAddPriorityMenu(false)}
+             >
+               <TouchableOpacity 
+                 style={styles.materialMenuOverlay}
+                 activeOpacity={1}
+                 onPress={() => setShowQuickAddPriorityMenu(false)}
+               >
+                 <View style={styles.materialMenuContent} onStartShouldSetResponder={() => true}>
+                   <Text style={styles.materialMenuTitle}>Priority</Text>
+                   {[
+                     { value: 1, label: 'Urgent', color: '#FF3B30' },
+                     { value: 2, label: 'High', color: '#FF3B30' },
+                     { value: 3, label: 'Medium', color: '#FFCC00' },
+                     { value: 4, label: 'Low', color: '#007AFF' },
+                   ].map((option) => (
+                     <TouchableOpacity
+                       key={option.value}
+                       style={styles.materialMenuItem}
+                       onPress={() => handleQuickAddPriorityChange(option.value)}
+                     >
+                       <View style={[styles.materialPriorityDot, { backgroundColor: option.color }]} />
+                       <Text style={styles.materialMenuItemText}>{option.label}</Text>
+                     </TouchableOpacity>
+                   ))}
+                 </View>
+               </TouchableOpacity>
+             </Modal>
+           )}
+
+           {showQuickAddTagsMenu && (
+             <Modal 
+               visible={true} 
+               transparent 
+               animationType="fade"
+               onRequestClose={() => setShowQuickAddTagsMenu(false)}
+             >
+               <TouchableOpacity 
+                 style={styles.materialMenuOverlay}
+                 activeOpacity={1}
+                 onPress={() => setShowQuickAddTagsMenu(false)}
+               >
+                 <View style={styles.materialMenuContent} onStartShouldSetResponder={() => true}>
+                   <Text style={styles.materialMenuTitle}>Tags</Text>
+                   {tags.map((tag) => (
+                     <TouchableOpacity
+                       key={tag.id}
+                       style={styles.materialMenuItem}
+                       onPress={() => handleQuickAddTagToggle(tag.id)}
+                     >
+                       <View style={[
+                         styles.materialCheckbox,
+                         quickAddTask.tags.includes(tag.id) && styles.materialCheckboxSelected
+                       ]}>
+                         {quickAddTask.tags.includes(tag.id) && <Text style={styles.materialCheckmark}>✓</Text>}
+                       </View>
+                       <Text style={styles.materialMenuItemText}>{tag.name}</Text>
+                     </TouchableOpacity>
+                   ))}
+                 </View>
+               </TouchableOpacity>
+             </Modal>
+           )}
+
+           {showQuickAddListsMenu && (
+             <Modal 
+               visible={true} 
+               transparent 
+               animationType="fade"
+               onRequestClose={() => setShowQuickAddListsMenu(false)}
+             >
+               <TouchableOpacity 
+                 style={styles.materialMenuOverlay}
+                 activeOpacity={1}
+                 onPress={() => setShowQuickAddListsMenu(false)}
+               >
+                 <View style={styles.materialMenuContent} onStartShouldSetResponder={() => true}>
+                   <Text style={styles.materialMenuTitle}>Lists</Text>
+                   {lists.map((list) => (
+                     <TouchableOpacity
+                       key={list.id}
+                       style={styles.materialMenuItem}
+                       onPress={() => handleQuickAddListChange(list.id)}
+                     >
+                       <View style={[
+                         styles.materialCheckbox,
+                         quickAddTask.listId === list.id && styles.materialCheckboxSelected
+                       ]}>
+                         {quickAddTask.listId === list.id && <Text style={styles.materialCheckmark}>✓</Text>}
+                       </View>
+                       <Text style={styles.materialMenuItemText}>{list.name}</Text>
+                     </TouchableOpacity>
+                   ))}
+                 </View>
+               </TouchableOpacity>
+             </Modal>
+           )}
+
+           {/* Add Task Modal (Legacy - can be removed) */}
+           <Modal visible={showAddTask} transparent animationType="slide">
+             <View style={styles.modalOverlay}>
+               <View style={styles.modalContainer}>
+                 <View style={styles.modalContent}>
+                   <Text style={styles.modalTitle}>Add New Task</Text>
+                   
+                   <TextInput
+                     style={styles.textInput}
+                     placeholder="Enter task title..."
+                     placeholderTextColor={CompactColors.textMuted}
+                     value={newTaskTitle}
+                     onChangeText={setNewTaskTitle}
+                     autoFocus
+                   />
+                   
+                   <View style={styles.modalActions}>
+                     <TouchableOpacity
+                       style={[styles.modalButton, styles.cancelButton]}
+                       onPress={() => {
+                         setShowAddTask(false);
+                         setNewTaskTitle('');
+                       }}
+                     >
+                       <Text style={styles.cancelButtonText}>Cancel</Text>
+                     </TouchableOpacity>
+                     
+                     <TouchableOpacity
+                       style={[styles.modalButton, styles.addButton]}
+                       onPress={handleAddTask}
+                     >
+                       <Text style={styles.addButtonText}>Add Task</Text>
+                     </TouchableOpacity>
+                   </View>
+                 </View>
+               </View>
+             </View>
+           </Modal>
+
+           {/* Drawer */}
+           <SimpleDrawer
+             isVisible={showDrawer}
+             onClose={() => setShowDrawer(false)}
+             currentModule="Kary"
+             onModuleChange={() => setShowDrawer(false)}
+           />
+
+           {/* Task Details Modal */}
+           <TaskDetailsModalEmailUI
+             visible={showTaskDetails}
+             task={selectedTask}
+             onClose={closeTaskDetails}
+             onSave={handleTaskSave}
+             onDelete={handleTaskDelete}
+             lists={lists}
+             tags={tags}
+             tasks={tasks}
+           />
+         </View>
+       );
+     };
 
 const styles = StyleSheet.create({
   container: {
@@ -699,6 +1348,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: CompactColors.textSecondary,
   },
+
+
   
   // Subtasks
   subtasksContainer: {
@@ -823,6 +1474,557 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  
+  // Quick Add Modal Styles
+  quickAddModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickAddModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  quickAddModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  quickAddModalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: CompactColors.text,
+  },
+  quickAddModalCloseButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  quickAddModalCloseIcon: {
+    fontSize: 24,
+    color: CompactColors.textMuted,
+    fontWeight: '600',
+  },
+  quickAddModalInputRow: {
+    marginBottom: 20,
+  },
+  quickAddModalInput: {
+    fontSize: 16,
+    color: CompactColors.text,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  quickAddModalIconsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  quickAddModalIconButton: {
+    padding: 12,
+    minWidth: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickAddModalIcon: {
+    fontSize: 24,
+    color: CompactColors.textMuted,
+  },
+  quickAddModalButton: {
+    backgroundColor: CompactColors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  quickAddModalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  
+  // Material Design 3 Menu Styles
+  materialMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  materialMenuContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  materialMenuTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: CompactColors.text,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  materialMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  materialMenuItemText: {
+    fontSize: 16,
+    color: CompactColors.text,
+    marginLeft: 16,
+    flex: 1,
+  },
+  materialPriorityDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  materialCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: CompactColors.border,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  materialCheckboxSelected: {
+    backgroundColor: CompactColors.primary,
+    borderColor: CompactColors.primary,
+  },
+  materialCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Date-Time Picker Styles
+  dateTimePickerContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '95%',
+    maxWidth: 400,
+    maxHeight: '90%',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  dateTimePickerHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: CompactColors.border,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  dateTimePickerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: CompactColors.text,
+    textAlign: 'center',
+  },
+
+  quickDateSelectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: CompactColors.border,
+  },
+  quickDateSelectionItem: {
+    alignItems: 'center',
+    minWidth: 70,
+  },
+  quickDateIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: CompactColors.surface,
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  quickDateIconText: {
+    fontSize: 14,
+    color: CompactColors.text,
+    fontWeight: '600',
+  },
+  quickDateSelectionText: {
+    fontSize: 12,
+    color: CompactColors.text,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  calendarContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  calendarNavButton: {
+    padding: 8,
+  },
+  calendarNavIcon: {
+    fontSize: 20,
+    color: CompactColors.textSecondary,
+    fontWeight: '600',
+  },
+  calendarMonthText: {
+    fontSize: 18,
+    color: CompactColors.text,
+    fontWeight: '600',
+  },
+  calendarDaysHeader: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  calendarDayHeader: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    color: CompactColors.textSecondary,
+    fontWeight: '500',
+    paddingVertical: 8,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDay: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
+  calendarDayCurrentMonth: {
+    // Default styling for current month days
+  },
+  calendarDayToday: {
+    borderWidth: 2,
+    borderColor: CompactColors.primary,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+  },
+  calendarDaySelected: {
+    backgroundColor: CompactColors.primary,
+    borderRadius: 20,
+  },
+  calendarDayText: {
+    fontSize: 14,
+    color: CompactColors.textMuted,
+    fontWeight: '500',
+  },
+  calendarDayTextCurrentMonth: {
+    color: CompactColors.text,
+  },
+  calendarDayTextToday: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  calendarDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  calendarDaySubtext: {
+    fontSize: 10,
+    color: CompactColors.textMuted,
+    marginTop: 2,
+  },
+  additionalOptionsContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: CompactColors.border,
+  },
+  additionalOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  additionalOptionIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  additionalOptionIconText: {
+    fontSize: 16,
+    color: CompactColors.text,
+  },
+  additionalOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: CompactColors.text,
+    fontWeight: '500',
+  },
+  additionalOptionValue: {
+    fontSize: 14,
+    color: CompactColors.textSecondary,
+    fontWeight: '500',
+  },
+  dateTimePickerFooter: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: CompactColors.border,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  dateTimePickerFooterButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  dateTimePickerFooterButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Time Picker Styles
+  timePickerContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 400,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  timePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: CompactColors.border,
+  },
+  timePickerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: CompactColors.text,
+  },
+  timePickerCloseButton: {
+    padding: 8,
+  },
+  timePickerCloseIcon: {
+    fontSize: 20,
+    color: CompactColors.textSecondary,
+    fontWeight: '600',
+  },
+  quickTimeOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: CompactColors.border,
+  },
+  quickTimeOption: {
+    backgroundColor: CompactColors.surface,
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  quickTimeOptionText: {
+    fontSize: 14,
+    color: CompactColors.text,
+    fontWeight: '500',
+  },
+  customTimeSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: CompactColors.border,
+  },
+  customTimeLabel: {
+    fontSize: 16,
+    color: CompactColors.text,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  timeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeInputContainer: {
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  timeInputLabel: {
+    fontSize: 12,
+    color: CompactColors.textSecondary,
+    marginBottom: 8,
+  },
+  timeInput: {
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    width: 60,
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  timeInputSeparator: {
+    fontSize: 20,
+    color: CompactColors.text,
+    fontWeight: '600',
+    marginHorizontal: 8,
+  },
+  ampmContainer: {
+    flexDirection: 'row',
+    marginLeft: 16,
+  },
+  ampmButton: {
+    backgroundColor: CompactColors.surface,
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginHorizontal: 4,
+  },
+  ampmButtonActive: {
+    backgroundColor: CompactColors.primary,
+    borderColor: CompactColors.primary,
+  },
+  ampmButtonText: {
+    fontSize: 14,
+    color: CompactColors.text,
+    fontWeight: '500',
+  },
+  ampmButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  timePickerFooter: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: CompactColors.border,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  timePickerFooterButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  timePickerFooterButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: CompactColors.text,
+  },
+  
+  // Quick Add Menu Styles
+  quickAddMenuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'flex-end',
+  },
+  quickAddMenu: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingVertical: 16,
+    maxHeight: '60%',
+  },
+  quickAddMenuTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: CompactColors.text,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  quickAddMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  quickAddMenuItemText: {
+    fontSize: 16,
+    color: CompactColors.text,
+    marginLeft: 12,
+  },
+  quickAddPriorityDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  quickAddCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: CompactColors.border,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickAddCheckboxSelected: {
+    backgroundColor: CompactColors.primary,
+    borderColor: CompactColors.primary,
+  },
+  quickAddCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });
 
 export default KaryScreenCompact;
+
+
+
+

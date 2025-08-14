@@ -40,9 +40,16 @@ const convertTimestamps = (data: any): any => {
 export const taskService = {
   add: async (taskData: Omit<Task, 'id'>): Promise<string> => {
     const user = getCurrentUser();
+    
+    // Clean up undefined values to prevent Firebase errors
+    const cleanTaskData = Object.fromEntries(
+      Object.entries(taskData).filter(([_, value]) => value !== undefined)
+    );
+    
     const taskToAdd = {
-      ...taskData,
+      ...cleanTaskData,
       createdAt: new Date(),
+      updatedAt: new Date(),
       userId: user.uid,
       parentId: taskData.parentId || null,
       completionDate: taskData.completionDate || null,
@@ -50,7 +57,7 @@ export const taskService = {
       reminder: taskData.reminder || false,
       tags: taskData.tags || [],
       description: taskData.description || '',
-      priority: taskData.priority || null,
+      priority: taskData.priority || 3,
     };
 
     const docRef = await getUserCollection('tasks').add(taskToAdd);
@@ -58,7 +65,18 @@ export const taskService = {
   },
 
   update: async (taskId: string, updates: Partial<Task>): Promise<void> => {
-    return getUserCollection('tasks').doc(taskId).update(updates);
+    // Clean up undefined values to prevent Firebase errors
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+    
+    // Add updatedAt timestamp
+    const updatesWithTimestamp = {
+      ...cleanUpdates,
+      updatedAt: new Date(),
+    };
+    
+    return getUserCollection('tasks').doc(taskId).update(updatesWithTimestamp);
   },
 
   delete: async (taskId: string): Promise<void> => {
