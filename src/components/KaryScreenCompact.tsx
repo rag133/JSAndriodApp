@@ -19,6 +19,8 @@ import { Task, List, Tag } from '../types/kary';
 import SimpleDrawer from '../navigation/SimpleDrawerNavigator';
 import { useFilter } from '../contexts/FilterContext';
 import TaskDetailsModalEmailUI from './TaskDetailsModalEmailUI';
+import { TimePickerModal } from 'react-native-paper-dates';
+import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -63,7 +65,8 @@ const KaryScreenCompact = () => {
     dueDate: undefined as Date | undefined,
     priority: 3 as 1 | 2 | 3 | 4,
     tags: [] as string[],
-    listId: ''
+    listId: '',
+    time: undefined as Date | undefined,
   });
   const [showQuickAddDatePicker, setShowQuickAddDatePicker] = useState(false);
   const [showQuickAddPriorityMenu, setShowQuickAddPriorityMenu] = useState(false);
@@ -169,7 +172,8 @@ const KaryScreenCompact = () => {
         dueDate: undefined,
         priority: 3,
         tags: [],
-        listId: quickAddTask.listId // Keep the same list
+        listId: quickAddTask.listId, // Keep the same list
+        time: undefined,
       });
       
       setShowQuickAddPanel(false);
@@ -726,12 +730,6 @@ const KaryScreenCompact = () => {
                             {/* Header */}
                             <View style={styles.dateTimePickerHeader}>
                               <Text style={styles.dateTimePickerTitle}>Select Date</Text>
-                              <TouchableOpacity 
-                                style={styles.timePickerCloseButton}
-                                onPress={() => setShowQuickAddDatePicker(false)}
-                              >
-                                <Text style={styles.timePickerCloseIcon}>✕</Text>
-                              </TouchableOpacity>
                             </View>
                             
                             {/* Quick Date Selection */}
@@ -740,8 +738,8 @@ const KaryScreenCompact = () => {
                                 style={styles.quickDateSelectionItem}
                                 onPress={() => {
                                   const today = new Date();
-                                  handleQuickAddDateChange(today);
-                                  setShowQuickAddDatePicker(false);
+                                  setQuickAddTask(prev => ({ ...prev, dueDate: today }));
+                                  // Don't close modal automatically - let user choose when to close
                                 }}
                               >
                                 <View style={styles.quickDateIcon}>
@@ -755,8 +753,8 @@ const KaryScreenCompact = () => {
                                 onPress={() => {
                                   const tomorrow = new Date();
                                   tomorrow.setDate(tomorrow.getDate() + 1);
-                                  handleQuickAddDateChange(tomorrow);
-                                  setShowQuickAddDatePicker(false);
+                                  setQuickAddTask(prev => ({ ...prev, dueDate: tomorrow }));
+                                  // Don't close modal automatically - let user choose when to close
                                 }}
                               >
                                 <View style={styles.quickDateIcon}>
@@ -770,8 +768,8 @@ const KaryScreenCompact = () => {
                                 onPress={() => {
                                   const nextWeek = new Date();
                                   nextWeek.setDate(nextWeek.getDate() + 7);
-                                  handleQuickAddDateChange(nextWeek);
-                                  setShowQuickAddDatePicker(false);
+                                  setQuickAddTask(prev => ({ ...prev, dueDate: nextWeek }));
+                                  // Don't close modal automatically - let user choose when to close
                                 }}
                               >
                                 <View style={styles.quickDateIcon}>
@@ -840,8 +838,8 @@ const KaryScreenCompact = () => {
                                         ]}
                                         onPress={() => {
                                           if (isCurrentMonth) {
-                                            handleQuickAddDateChange(date);
-                                            setShowQuickAddDatePicker(false);
+                                            setQuickAddTask(prev => ({ ...prev, dueDate: date }));
+                                            // Don't close modal automatically - let user choose when to close
                                           }
                                         }}
                                         disabled={!isCurrentMonth}
@@ -862,175 +860,93 @@ const KaryScreenCompact = () => {
                               </View>
                             </View>
                             
+                            {/* Time Row - Material Design 3 Style */}
+                            <View style={styles.timeRow}>
+                              <View style={styles.timeRowLeft}>
+                                <Text style={styles.timeRowIcon}>⏰</Text>
+                                <Text style={styles.timeRowLabel}>Time</Text>
+                              </View>
+                              <TouchableOpacity
+                                style={styles.timeRowValue}
+                                onPress={() => setShowTimePicker(true)}
+                              >
+                                <Text style={styles.timeRowValueText}>
+                                  {quickAddTask.dueDate && quickAddTask.dueDate.getHours() !== 0 
+                                    ? quickAddTask.dueDate.toLocaleTimeString('en-US', { 
+                                        hour: 'numeric', 
+                                        minute: '2-digit', 
+                                        hour12: true 
+                                      })
+                                    : 'None {'>'}'
+                                  }
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+
+                            {/* Reminder Row - Material Design 3 Style */}
+                            <View style={styles.timeRow}>
+                              <View style={styles.timeRowLeft}>
+                                <Text style={styles.timeRowIcon}>🔔</Text>
+                                <Text style={styles.timeRowLabel}>Reminder</Text>
+                              </View>
+                              <TouchableOpacity
+                                style={styles.timeRowValue}
+                                onPress={() => {
+                                  // TODO: Implement reminder picker
+                                }}
+                              >
+                                <Text style={styles.timeRowValueText}>None {'>'}</Text>
+                              </TouchableOpacity>
+                            </View>
+
                             {/* Footer Buttons */}
                             <View style={styles.dateTimePickerFooter}>
-                              <TouchableOpacity 
+                              <TouchableOpacity
                                 style={styles.dateTimePickerFooterButton}
                                 onPress={() => {
                                   setQuickAddTask(prev => ({ ...prev, dueDate: undefined }));
-                                  setShowQuickAddDatePicker(false);
+                                  // Don't close modal - let user continue working
                                 }}
                               >
                                 <Text style={styles.dateTimePickerFooterButtonText}>CLEAR</Text>
                               </TouchableOpacity>
-                              
-                              <TouchableOpacity 
+
+                              <TouchableOpacity
                                 style={styles.dateTimePickerFooterButton}
                                 onPress={() => setShowQuickAddDatePicker(false)}
                               >
-                                <Text style={styles.dateTimePickerFooterButtonText}>CANCEL</Text>
+                                <Text style={[styles.dateTimePickerFooterButtonText, { color: CompactColors.textSecondary }]}>CANCEL</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={[styles.dateTimePickerFooterButton, styles.okButton]}
+                                onPress={() => setShowQuickAddDatePicker(false)}
+                              >
+                                <Text style={[styles.dateTimePickerFooterButtonText, styles.okButtonText]}>OK</Text>
                               </TouchableOpacity>
                             </View>
                           </View>
                         </TouchableOpacity>
                       </Modal>
 
-             {/* Time Picker Modal */}
-             {showTimePicker && (
-               <Modal
+             {/* Time Picker Modal - Material Design 3 */}
+             <PaperProvider theme={DefaultTheme}>
+               <TimePickerModal
                  visible={showTimePicker}
-                 transparent={true}
-                 animationType="fade"
-                 onRequestClose={() => setShowTimePicker(false)}
-               >
-                 <TouchableOpacity 
-                   style={styles.modalOverlay}
-                   activeOpacity={1}
-                   onPress={() => setShowTimePicker(false)}
-                 >
-                   <View style={styles.timePickerContent} onStartShouldSetResponder={() => true}>
-                     {/* Header */}
-                     <View style={styles.timePickerHeader}>
-                       <Text style={styles.timePickerTitle}>Select Time</Text>
-                       <TouchableOpacity 
-                         style={styles.timePickerCloseButton}
-                         onPress={() => setShowTimePicker(false)}
-                       >
-                         <Text style={styles.timePickerCloseIcon}>✕</Text>
-                       </TouchableOpacity>
-                     </View>
-                     
-                     {/* Quick Time Options */}
-                     <View style={styles.quickTimeOptions}>
-                       <TouchableOpacity 
-                         style={styles.quickTimeOption}
-                         onPress={() => handleTimeChange(9, 0)}
-                       >
-                         <Text style={styles.quickTimeOptionText}>9:00 AM</Text>
-                       </TouchableOpacity>
-                       <TouchableOpacity 
-                         style={styles.quickTimeOption}
-                         onPress={() => handleTimeChange(12, 0)}
-                       >
-                         <Text style={styles.quickTimeOptionText}>12:00 PM</Text>
-                       </TouchableOpacity>
-                       <TouchableOpacity 
-                         style={styles.quickTimeOption}
-                         onPress={() => handleTimeChange(15, 0)}
-                       >
-                         <Text style={styles.quickTimeOptionText}>3:00 PM</Text>
-                       </TouchableOpacity>
-                       <TouchableOpacity 
-                         style={styles.quickTimeOption}
-                         onPress={() => handleTimeChange(18, 0)}
-                       >
-                         <Text style={styles.quickTimeOptionText}>6:00 PM</Text>
-                       </TouchableOpacity>
-                     </View>
-                     
-                     {/* Custom Time Input */}
-                     <View style={styles.customTimeSection}>
-                       <Text style={styles.customTimeLabel}>Custom Time</Text>
-                       <View style={styles.timeInputRow}>
-                         <View style={styles.timeInputContainer}>
-                           <Text style={styles.timeInputLabel}>Hour</Text>
-                           <TextInput
-                             style={styles.timeInput}
-                             placeholder="12"
-                             keyboardType="numeric"
-                             maxLength={2}
-                             defaultValue="12"
-                           />
-                         </View>
-                         <Text style={styles.timeInputSeparator}>:</Text>
-                         <View style={styles.timeInputContainer}>
-                           <Text style={styles.timeInputLabel}>Minute</Text>
-                           <TextInput
-                             style={styles.timeInput}
-                             placeholder="00"
-                             keyboardType="numeric"
-                             maxLength={2}
-                             defaultValue="00"
-                           />
-                         </View>
-                         <View style={styles.ampmContainer}>
-                           <TouchableOpacity 
-                             style={[
-                               styles.ampmButton,
-                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() < 12) && 
-                               styles.ampmButtonActive
-                             ]}
-                             onPress={() => {
-                               if (quickAddTask.dueDate) {
-                                 const currentHour = quickAddTask.dueDate.getHours();
-                                 const currentMinute = quickAddTask.dueDate.getMinutes();
-                                 const newHour = currentHour >= 12 ? currentHour - 12 : currentHour;
-                                 if (newHour === 0) newHour = 12;
-                                 handleTimeChange(newHour, currentMinute);
-                               }
-                             }}
-                           >
-                             <Text style={[
-                               styles.ampmButtonText,
-                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() < 12) && 
-                               styles.ampmButtonTextActive
-                             ]}>AM</Text>
-                           </TouchableOpacity>
-                           <TouchableOpacity 
-                             style={[
-                               styles.ampmButton,
-                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() >= 12) && 
-                               styles.ampmButtonTextActive
-                             ]}
-                             onPress={() => {
-                               if (quickAddTask.dueDate) {
-                                 const currentHour = quickAddTask.dueDate.getHours();
-                                 const currentMinute = quickAddTask.dueDate.getMinutes();
-                                 const newHour = currentHour < 12 ? currentHour + 12 : currentHour;
-                                 if (newHour === 24) newHour = 12;
-                                 handleTimeChange(newHour, currentMinute);
-                               }
-                             }}
-                           >
-                             <Text style={[
-                               styles.ampmButtonText,
-                               (quickAddTask.dueDate && quickAddTask.dueDate.getHours() >= 12) && 
-                               styles.ampmButtonTextActive
-                             ]}>PM</Text>
-                           </TouchableOpacity>
-                         </View>
-                       </View>
-                     </View>
-                     
-                     {/* Footer */}
-                     <View style={styles.timePickerFooter}>
-                       <TouchableOpacity 
-                         style={styles.timePickerFooterButton}
-                         onPress={() => setShowTimePicker(false)}
-                       >
-                         <Text style={styles.timePickerFooterButtonText}>Cancel</Text>
-                       </TouchableOpacity>
-                       <TouchableOpacity 
-                         style={styles.timePickerFooterButton}
-                         onPress={() => setShowTimePicker(false)}
-                       >
-                         <Text style={styles.timePickerFooterButtonText}>OK</Text>
-                       </TouchableOpacity>
-                     </View>
-                   </View>
-                 </TouchableOpacity>
-               </Modal>
-             )}
+                 onDismiss={() => setShowTimePicker(false)}
+                 onConfirm={({ hours, minutes }) => {
+                   if (quickAddTask.dueDate) {
+                     const newDate = new Date(quickAddTask.dueDate);
+                     newDate.setHours(hours, minutes, 0, 0);
+                     setQuickAddTask(prev => ({ ...prev, dueDate: newDate }));
+                   }
+                   setShowTimePicker(false);
+                 }}
+                 hours={quickAddTask.dueDate ? quickAddTask.dueDate.getHours() : 12}
+                 minutes={quickAddTask.dueDate ? quickAddTask.dueDate.getMinutes() : 0}
+                 use24HourClock={false}
+               />
+             </PaperProvider>
  
              {showQuickAddPriorityMenu && (
              <Modal 
@@ -1627,21 +1543,21 @@ const styles = StyleSheet.create({
   dateTimePickerContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    width: '95%',
-    maxWidth: 400,
+    width: '80%',
+    maxWidth: 340,
     maxHeight: '90%',
-    elevation: 8,
+    elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
+    overflow: 'hidden',
+    margin: 20,
   },
   dateTimePickerHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: CompactColors.border,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
   dateTimePickerTitle: {
     fontSize: 20,
@@ -1685,8 +1601,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   calendarContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   calendarHeader: {
     flexDirection: 'row',
@@ -1709,7 +1625,7 @@ const styles = StyleSheet.create({
   },
   calendarDaysHeader: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   calendarDayHeader: {
     flex: 1,
@@ -1752,7 +1668,7 @@ const styles = StyleSheet.create({
     color: CompactColors.text,
   },
   calendarDayTextToday: {
-    color: '#FFFFFF',
+    color: CompactColors.primary,
     fontWeight: '600',
   },
   calendarDayTextSelected: {
@@ -1799,19 +1715,37 @@ const styles = StyleSheet.create({
   },
   dateTimePickerFooter: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: CompactColors.border,
     paddingTop: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingBottom: 20,
+    gap: 4,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   dateTimePickerFooterButton: {
-    flex: 1,
+    flex: 0,
+    minWidth: 60,
+    maxWidth: 80,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    backgroundColor: 'transparent',
   },
   dateTimePickerFooterButtonText: {
     fontSize: 16,
+    fontWeight: '600',
+    color: CompactColors.textSecondary,
+  },
+  okButton: {
+    backgroundColor: CompactColors.primary,
+    borderColor: CompactColors.primary,
+  },
+  okButtonText: {
+    color: CompactColors.background,
     fontWeight: '600',
   },
 
@@ -2020,6 +1954,41 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
+  },
+
+  // New styles for Time Row
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: CompactColors.surface,
+    justifyContent: 'space-between',
+  },
+  timeRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  timeRowIcon: {
+    fontSize: 20,
+    color: CompactColors.text,
+    marginRight: 8,
+  },
+  timeRowLabel: {
+    fontSize: 14,
+    color: CompactColors.textSecondary,
+    fontWeight: '600',
+  },
+  timeRowValue: {
+    alignItems: 'flex-end',
+    minWidth: 80,
+  },
+  timeRowValueText: {
+    fontSize: 14,
+    color: CompactColors.text,
+    fontWeight: '500',
+    textAlign: 'right',
   },
 });
 

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Task, Tag, List } from '../types/kary';
 import { taskService, tagService, listService } from '../services/dataService';
+import { UniformDateTimePicker, DateTimePickerIcon } from './index';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -37,6 +38,7 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [subtasks, setSubtasks] = useState<Task[]>([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -103,6 +105,7 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
         completed: false,
         parentId: task.id,
         createdAt: new Date(),
+        updatedAt: new Date(),
       };
       
       await taskService.add(subtaskData);
@@ -153,6 +156,35 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
     }
   };
 
+  const handleDateTimeConfirm = (date: Date, reminderOption?: string) => {
+    if (editedTask) {
+      setEditedTask({
+        ...editedTask,
+        dueDate: date,
+        reminder: reminderOption === 'No reminder' ? false : true,
+      });
+    }
+    setShowDateTimePicker(false);
+  };
+
+  const formatDueDate = (date: Date) => {
+    const now = new Date();
+    const diffTime = date.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
+    
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
   if (!visible || !task || !editedTask) return null;
 
   const modalHeight = isExpanded ? screenHeight * 0.9 : screenHeight * 0.5;
@@ -187,173 +219,231 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                 })}
               >
                 <Text style={styles.statusIcon}>
-                  {editedTask.completed ? '✅' : '⭕'}
+                  {editedTask.completed ? '✅' : '⬜'}
                 </Text>
               </TouchableOpacity>
               <View style={styles.taskMeta}>
                 <Text style={styles.listName}>{selectedList?.name}</Text>
-                {task.dueDate && (
+                {editedTask.dueDate && (
                   <Text style={styles.dueDate}>
-                    📅 {formatDate(task.dueDate)}
+                    📅 {formatDueDate(editedTask.dueDate)}
                   </Text>
                 )}
               </View>
             </View>
-            <View style={styles.headerRight}>
-              <TouchableOpacity style={styles.actionButton} onPress={handleSave}>
-                <Text style={styles.actionIcon}>💾</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
-                <Text style={styles.actionIcon}>🗑️</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton} onPress={onClose}>
-                <Text style={styles.actionIcon}>✕</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeIcon}>✕</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Content */}
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Task Title */}
-            <TextInput
-              style={[
-                styles.titleInput,
-                editedTask.completed && styles.completedTitle
-              ]}
-              value={editedTask.title}
-              onChangeText={(text) => setEditedTask({ ...editedTask, title: text })}
-              placeholder="Task title..."
-              multiline
-            />
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Task Title</Text>
+              <TextInput
+                style={styles.titleInput}
+                value={editedTask.title}
+                onChangeText={(text) => setEditedTask({ ...editedTask, title: text })}
+                placeholder="Enter task title"
+                placeholderTextColor="#999"
+              />
+            </View>
 
-            {/* Priority */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Priority</Text>
+            {/* Due Date Section */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Due Date</Text>
+              
+              {/* Date Time Picker Icon */}
+              <View style={styles.dateTimeSection}>
+                <DateTimePickerIcon
+                  onPress={() => setShowDateTimePicker(true)}
+                  size={32}
+                  color="#007AFF"
+                />
+                <View style={styles.dateTimeInfo}>
+                  <Text style={styles.dateTimeLabel}>Set due date & time</Text>
+                  <Text style={styles.dateTimeValue}>
+                    {editedTask.dueDate ? formatDueDate(editedTask.dueDate) : 'No due date set'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Selected Date Display */}
+              {editedTask.dueDate && (
+                <View style={styles.selectedDateTimeContainer}>
+                  <Text style={styles.selectedDateTimeLabel}>Selected:</Text>
+                  <Text style={styles.selectedDateTimeValue}>
+                    {editedTask.dueDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </Text>
+                  <Text style={styles.selectedDateTimeTime}>
+                    at {editedTask.dueDate.toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true,
+                    })}
+                  </Text>
+                  {editedTask.reminder && (
+                    <Text style={styles.reminderText}>
+                      ⏰ Reminder enabled
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Task Description */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={styles.descriptionInput}
+                value={editedTask.description || ''}
+                onChangeText={(text) => setEditedTask({ ...editedTask, description: text })}
+                placeholder="Enter task description"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Priority Selection */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Priority</Text>
               <View style={styles.priorityContainer}>
                 {[1, 2, 3, 4].map((priority) => (
                   <TouchableOpacity
                     key={priority}
                     style={[
                       styles.priorityButton,
-                      editedTask.priority === priority && styles.selectedPriority
+                      editedTask.priority === priority && styles.selectedPriority,
                     ]}
                     onPress={() => setEditedTask({ ...editedTask, priority: priority as 1 | 2 | 3 | 4 })}
                   >
-                    <Text style={styles.priorityIcon}>{getPriorityIcon(priority)}</Text>
-                    <Text style={styles.priorityText}>{getPriorityText(priority)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Description */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Description</Text>
-              <TextInput
-                style={styles.descriptionInput}
-                value={editedTask.description || ''}
-                onChangeText={(text) => setEditedTask({ ...editedTask, description: text })}
-                placeholder="Add description..."
-                multiline
-                textAlignVertical="top"
-              />
-            </View>
-
-            {/* Tags */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Tags</Text>
-              <View style={styles.tagsContainer}>
-                {availableTags.map((tag) => {
-                  const isSelected = editedTask.tags?.includes(tag.name);
-                  return (
-                    <TouchableOpacity
-                      key={tag.id}
-                      style={[
-                        styles.tagChip,
-                        isSelected && styles.selectedTag
-                      ]}
-                      onPress={() => {
-                        const currentTags = editedTask.tags || [];
-                        const newTags = isSelected
-                          ? currentTags.filter(t => t !== tag.name)
-                          : [...currentTags, tag.name];
-                        setEditedTask({ ...editedTask, tags: newTags });
-                      }}
-                    >
-                      <Text style={[
-                        styles.tagText,
-                        isSelected && styles.selectedTagText
-                      ]}>
-                        #{tag.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Subtasks */}
-            {isExpanded && (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Subtasks ({subtasks.length})</Text>
-                
-                {/* Add Subtask */}
-                <View style={styles.addSubtaskContainer}>
-                  <TextInput
-                    style={styles.subtaskInput}
-                    value={newSubtaskTitle}
-                    onChangeText={setNewSubtaskTitle}
-                    placeholder="Add a subtask..."
-                    onSubmitEditing={addSubtask}
-                  />
-                  <TouchableOpacity style={styles.addSubtaskButton} onPress={addSubtask}>
-                    <Text style={styles.addSubtaskIcon}>➕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Subtasks List */}
-                {subtasks.map((subtask) => (
-                  <View key={subtask.id} style={styles.subtaskItem}>
-                    <TouchableOpacity
-                      style={styles.subtaskCheckbox}
-                      onPress={() => toggleSubtask(subtask.id, subtask.completed)}
-                    >
-                      <Text style={styles.subtaskStatusIcon}>
-                        {subtask.completed ? '✅' : '⭕'}
-                      </Text>
-                    </TouchableOpacity>
                     <Text style={[
-                      styles.subtaskTitle,
-                      subtask.completed && styles.completedSubtask
+                      styles.priorityIcon,
+                      editedTask.priority === priority && styles.selectedPriorityIcon,
                     ]}>
-                      {subtask.title}
+                      {getPriorityIcon(priority)}
                     </Text>
-                  </View>
+                    <Text style={[
+                      styles.priorityText,
+                      editedTask.priority === priority && styles.selectedPriorityText,
+                    ]}>
+                      {getPriorityText(priority)}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </View>
-            )}
+            </View>
+
+            {/* Tags Selection */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Tags</Text>
+              <View style={styles.tagsContainer}>
+                {availableTags.map((tag) => (
+                  <TouchableOpacity
+                    key={tag.id}
+                    style={[
+                      styles.tagChip,
+                      editedTask.tags?.includes(tag.id) && styles.selectedTag,
+                    ]}
+                    onPress={() => {
+                      const currentTags = editedTask.tags || [];
+                      const newTags = editedTask.tags?.includes(tag.id)
+                        ? currentTags.filter(t => t !== tag.id)
+                        : [...currentTags, tag.id];
+                      setEditedTask({ ...editedTask, tags: newTags });
+                    }}
+                  >
+                    <Text style={[
+                      styles.tagText,
+                      editedTask.tags?.includes(tag.id) && styles.selectedTagText,
+                    ]}>
+                      {tag.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Subtasks Section */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Subtasks</Text>
+              <View style={styles.addSubtaskContainer}>
+                <TextInput
+                  style={styles.subtaskInput}
+                  value={newSubtaskTitle}
+                  onChangeText={setNewSubtaskTitle}
+                  placeholder="Add a subtask"
+                  placeholderTextColor="#999"
+                />
+                <TouchableOpacity onPress={addSubtask} style={styles.addSubtaskButton}>
+                  <Text style={styles.addSubtaskIcon}>+</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {subtasks.map((subtask) => (
+                <View key={subtask.id} style={styles.subtaskItem}>
+                  <TouchableOpacity
+                    style={styles.subtaskCheckbox}
+                    onPress={() => toggleSubtask(subtask.id, subtask.completed)}
+                  >
+                    <Text style={styles.subtaskStatusIcon}>
+                      {subtask.completed ? '✅' : '⬜'}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={[
+                    styles.subtaskTitle,
+                    subtask.completed && styles.completedSubtask,
+                  ]}>
+                    {subtask.title}
+                  </Text>
+                </View>
+              ))}
+            </View>
 
             {/* Task Info */}
-            {isExpanded && (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Task Info</Text>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Created:</Text>
-                  <Text style={styles.infoValue}>{formatDate(task.createdAt)}</Text>
-                </View>
-                {task.completionDate && (
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Completed:</Text>
-                    <Text style={styles.infoValue}>{formatDate(task.completionDate)}</Text>
-                  </View>
-                )}
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>List:</Text>
-                  <Text style={styles.infoValue}>{selectedList?.name}</Text>
-                </View>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Task Information</Text>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Created:</Text>
+                <Text style={styles.infoValue}>{formatDate(task.createdAt)}</Text>
               </View>
-            )}
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Last Updated:</Text>
+                <Text style={styles.infoValue}>{formatDate(task.updatedAt)}</Text>
+              </View>
+              {task.completionDate && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Completed:</Text>
+                  <Text style={styles.infoValue}>{formatDate(task.completionDate)}</Text>
+                </View>
+              )}
+            </View>
           </ScrollView>
+
+          {/* Action Buttons */}
+          <View style={styles.actions}>
+            <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
+              <Text style={styles.deleteButtonText}>Delete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Uniform Date Time Picker Modal */}
+          <UniformDateTimePicker
+            visible={showDateTimePicker}
+            initialDate={editedTask.dueDate}
+            onConfirm={handleDateTimeConfirm}
+            onCancel={() => setShowDateTimePicker(false)}
+          />
         </View>
       </View>
     </Modal>
@@ -572,6 +662,111 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     color: '#333',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  dateTimeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dateTimeInfo: {
+    marginLeft: 10,
+  },
+  dateTimeLabel: {
+    fontSize: 14,
+    color: '#333',
+  },
+  dateTimeValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginTop: 4,
+  },
+  selectedDateTimeContainer: {
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  selectedDateTimeLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  selectedDateTimeValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 2,
+  },
+  selectedDateTimeTime: {
+    fontSize: 14,
+    color: '#666',
+  },
+  reminderText: {
+    fontSize: 12,
+    color: '#FF9800',
+    marginTop: 8,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: '#FF5252',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  closeIcon: {
+    fontSize: 24,
+    color: '#666',
+  },
+  selectedPriorityIcon: {
+    color: '#2196F3',
+  },
+  selectedPriorityText: {
+    color: '#2196F3',
   },
 });
 
