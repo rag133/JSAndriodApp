@@ -26,11 +26,7 @@ export interface Tag {
   folderId?: string | null;
 }
 
-export interface Subtask {
-  id: string;
-  title: string;
-  completed: boolean;
-}
+
 
 export interface Task {
   id: string;
@@ -40,13 +36,12 @@ export interface Task {
   createdAt: Date;
   updatedAt: Date;
   completionDate?: Date;
-  parentId?: string; // ID of the parent task
+  parentId?: string; // ID of the parent task (web app structure)
   dueDate?: Date;
   reminder?: boolean;
   tags?: string[]; // Array of Tag IDs
   description?: string;
-  priority?: 'P1' | 'P2' | 'P3' | 'P4' | '';
-  subtasks?: Subtask[];
+  priority?: 1 | 2 | 3 | 4; // Number format to match web app exactly
   source?: {
     text: string;
     url: string;

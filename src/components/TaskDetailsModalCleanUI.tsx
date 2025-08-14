@@ -889,3 +889,4 @@ const styles = StyleSheet.create({
 });
 
 export default TaskDetailsModalCleanUI;
+

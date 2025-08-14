@@ -192,3 +192,4 @@ The Kary task details modal now features:
 - ✅ Performance optimized
 
 Your users will immediately notice the improved professional appearance and enhanced usability!
+

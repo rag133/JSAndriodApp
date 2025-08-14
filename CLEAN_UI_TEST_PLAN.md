@@ -187,3 +187,4 @@ After successful testing:
 ---
 
 This test plan ensures the new clean UI implementation meets all requirements and provides an excellent user experience similar to the reference email app design.
+
