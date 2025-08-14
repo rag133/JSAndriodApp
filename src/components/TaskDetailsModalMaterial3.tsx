@@ -31,7 +31,7 @@ import {
 import { Task, Tag, List } from '../types/kary';
 import { taskService, tagService, listService } from '../services/dataService';
 import { AutoSaveManager } from '../utils/debounceUtils';
-import MaterialDesign3DateTimePicker from './MaterialDesign3DateTimePicker';
+import TaskDetailsDateTimePicker from './TaskDetailsModalMaterial3';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
@@ -526,8 +526,8 @@ const TaskDetailsModalMaterial3: React.FC<TaskDetailsModalMaterial3Props> = ({
                   <View style={styles.bottomSpacing} />
                 </ScrollView>
 
-                {/* Material Design 3 Date Time Picker */}
-                <MaterialDesign3DateTimePicker
+                {/* Task Details Date Time Picker */}
+                <TaskDetailsDateTimePicker
                   visible={showDateTimePicker}
                   initialDate={editedTask.dueDate}
                   onConfirm={handleDueDateChange}

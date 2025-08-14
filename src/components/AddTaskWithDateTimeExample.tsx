@@ -9,7 +9,7 @@ import {
   ScrollView,
   SafeAreaView,
 } from 'react-native';
-import UniformDateTimePicker from './UniformDateTimePicker';
+import TaskDetailsDateTimePicker from './TaskDetailsDateTimePicker';
 import DateTimePickerIcon from './DateTimePickerIcon';
 
 interface AddTaskWithDateTimeExampleProps {
@@ -173,8 +173,8 @@ const AddTaskWithDateTimeExample: React.FC<AddTaskWithDateTimeExampleProps> = ({
           </View>
         </ScrollView>
 
-        {/* Uniform Date Time Picker Modal */}
-        <UniformDateTimePicker
+        {/* Task Details Date Time Picker Modal */}
+        <TaskDetailsDateTimePicker
           visible={showDateTimePicker}
           initialDate={dueDate}
           onConfirm={handleDateTimeConfirm}
