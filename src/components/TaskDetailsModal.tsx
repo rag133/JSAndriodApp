@@ -12,9 +12,32 @@ import {
 } from 'react-native';
 import { Task, Tag, List } from '../types/kary';
 import { taskService, tagService, listService } from '../services/dataService';
-import { UniformDateTimePicker, DateTimePickerIcon } from './index';
+import DateTimePickerIcon from './DateTimePickerIcon';
+import { TimePickerModal } from 'react-native-paper-dates';
+import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 
 const { height: screenHeight } = Dimensions.get('window');
+
+// Compact Color Scheme (Email-style)
+const CompactColors = {
+  background: '#FFFFFF',
+  surface: '#FFFFFF',
+  text: '#202124',
+  textSecondary: '#5F6368',
+  textMuted: '#9AA0A6',
+  border: '#E8EAED',
+  borderLight: '#F1F3F4',
+  primary: '#1A73E8',
+  checkbox: '#5F6368',
+  checkboxChecked: '#1A73E8',
+  red: '#EA4335',
+  orange: '#FF6D01',
+  yellow: '#FDD663',
+  green: '#34A853',
+  blue: '#4285F4',
+  purple: '#9C27B0',
+  grey: '#9AA0A6',
+};
 
 interface TaskDetailsModalProps {
   visible: boolean;
@@ -39,12 +62,21 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   const [subtasks, setSubtasks] = useState<Task[]>([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
+  
+  // Date picker state
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     if (task) {
       setEditedTask({ ...task });
       loadSubtasks();
       loadTags();
+      
+      // Set current month to task's due date month if it exists
+      if (task.dueDate) {
+        setCurrentMonth(new Date(task.dueDate));
+      }
     }
   }, [task]);
 
@@ -183,6 +215,17 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
       minute: '2-digit',
       hour12: true,
     });
+  };
+
+  // Calendar helper functions
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    const newMonth = new Date(currentMonth);
+    if (direction === 'prev') {
+      newMonth.setMonth(newMonth.getMonth() - 1);
+    } else {
+      newMonth.setMonth(newMonth.getMonth() + 1);
+    }
+    setCurrentMonth(newMonth);
   };
 
   if (!visible || !task || !editedTask) return null;
@@ -437,13 +480,234 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Uniform Date Time Picker Modal */}
-          <UniformDateTimePicker
+          {/* Custom Date Time Picker Modal */}
+          <Modal
             visible={showDateTimePicker}
-            initialDate={editedTask.dueDate}
-            onConfirm={handleDateTimeConfirm}
-            onCancel={() => setShowDateTimePicker(false)}
-          />
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowDateTimePicker(false)}
+          >
+            <TouchableOpacity 
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowDateTimePicker(false)}
+            >
+              <View style={styles.dateTimePickerContent} onStartShouldSetResponder={() => true}>
+                {/* Header */}
+                <View style={styles.dateTimePickerHeader}>
+                  <Text style={styles.dateTimePickerTitle}>Select Date</Text>
+                </View>
+                
+                {/* Quick Date Selection */}
+                <View style={styles.quickDateSelectionRow}>
+                  <TouchableOpacity 
+                    style={styles.quickDateSelectionItem}
+                    onPress={() => {
+                      const today = new Date();
+                      setEditedTask(prev => prev ? { ...prev, dueDate: today } : null);
+                    }}
+                  >
+                    <View style={styles.quickDateIcon}>
+                      <Text style={styles.quickDateIconText}>📅</Text>
+                    </View>
+                    <Text style={styles.quickDateSelectionText}>Today</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.quickDateSelectionItem}
+                    onPress={() => {
+                      const tomorrow = new Date();
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      setEditedTask(prev => prev ? { ...prev, dueDate: tomorrow } : null);
+                    }}
+                  >
+                    <View style={styles.quickDateIcon}>
+                      <Text style={styles.quickDateIconText}>📅</Text>
+                    </View>
+                    <Text style={styles.quickDateSelectionText}>Tomorrow</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.quickDateSelectionItem}
+                    onPress={() => {
+                      const nextWeek = new Date();
+                      nextWeek.setDate(nextWeek.getDate() + 7);
+                      setEditedTask(prev => prev ? { ...prev, dueDate: nextWeek } : null);
+                    }}
+                  >
+                    <View style={styles.quickDateIcon}>
+                      <Text style={styles.quickDateIconText}>📅</Text>
+                    </View>
+                    <Text style={styles.quickDateSelectionText}>Next Week</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Calendar */}
+                <View style={styles.calendarContainer}>
+                  <View style={styles.calendarHeader}>
+                    <TouchableOpacity 
+                      style={styles.calendarNavButton}
+                      onPress={() => handleMonthChange('prev')}
+                    >
+                      <Text style={styles.calendarNavIcon}>‹</Text>
+                    </TouchableOpacity>
+                    
+                    <Text style={styles.calendarMonthText}>
+                      {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </Text>
+                    
+                    <TouchableOpacity 
+                      style={styles.calendarNavButton}
+                      onPress={() => handleMonthChange('next')}
+                    >
+                      <Text style={styles.calendarNavIcon}>›</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {/* Days of Week */}
+                  <View style={styles.calendarDaysHeader}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <Text key={day} style={styles.calendarDayHeader}>{day}</Text>
+                    ))}
+                  </View>
+                  
+                  {/* Calendar Grid */}
+                  <View style={styles.calendarGrid}>
+                    {(() => {
+                      const today = new Date();
+                      const displayMonth = currentMonth.getMonth();
+                      const displayYear = currentMonth.getFullYear();
+                      const firstDay = new Date(displayYear, displayMonth, 1);
+                      const lastDay = new Date(displayYear, displayMonth + 1, 0);
+                      const startDate = new Date(firstDay);
+                      startDate.setDate(startDate.getDate() - firstDay.getDay());
+                      
+                      const calendarDays = [];
+                      for (let i = 0; i < 42; i++) {
+                        const date = new Date(startDate);
+                        date.setDate(startDate.getDate() + i);
+                        const isCurrentMonth = date.getMonth() === displayMonth;
+                        const isToday = date.toDateString() === today.toDateString();
+                        const isSelected = editedTask?.dueDate && date.toDateString() === editedTask.dueDate.toDateString();
+                        
+                        calendarDays.push(
+                          <TouchableOpacity
+                            key={i}
+                            style={[
+                              styles.calendarDay,
+                              isCurrentMonth && styles.calendarDayCurrentMonth,
+                              isToday && styles.calendarDayToday,
+                              isSelected && styles.calendarDaySelected
+                            ]}
+                            onPress={() => {
+                              if (isCurrentMonth) {
+                                setEditedTask(prev => prev ? { ...prev, dueDate: date } : null);
+                              }
+                            }}
+                            disabled={!isCurrentMonth}
+                          >
+                            <Text style={[
+                              styles.calendarDayText,
+                              isCurrentMonth && styles.calendarDayTextCurrentMonth,
+                              isToday && styles.calendarDayTextToday,
+                              isSelected && styles.calendarDayTextSelected
+                            ]}>
+                              {date.getDate()}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      }
+                      return calendarDays;
+                    })()}
+                  </View>
+                </View>
+                
+                {/* Time Row - Material Design 3 Style */}
+                <View style={styles.timeRow}>
+                  <View style={styles.timeRowLeft}>
+                    <Text style={styles.timeRowIcon}>⏰</Text>
+                    <Text style={styles.timeRowLabel}>Time</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.timeRowValue}
+                    onPress={() => setShowTimePicker(true)}
+                  >
+                    <Text style={styles.timeRowValueText}>
+                      {editedTask?.dueDate && editedTask.dueDate.getHours() !== 0 
+                        ? editedTask.dueDate.toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit', 
+                            hour12: true 
+                          })
+                        : 'None {'>'}'
+                      }
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Reminder Row - Material Design 3 Style */}
+                <View style={styles.timeRow}>
+                  <View style={styles.timeRowLeft}>
+                    <Text style={styles.timeRowIcon}>🔔</Text>
+                    <Text style={styles.timeRowLabel}>Reminder</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.timeRowValue}
+                    onPress={() => {
+                      // TODO: Implement reminder picker
+                    }}
+                  >
+                    <Text style={styles.timeRowValueText}>None {'>'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Footer Buttons */}
+                <View style={styles.dateTimePickerFooter}>
+                  <TouchableOpacity
+                    style={styles.dateTimePickerFooterButton}
+                    onPress={() => {
+                      setEditedTask(prev => prev ? { ...prev, dueDate: undefined } : null);
+                    }}
+                  >
+                    <Text style={styles.dateTimePickerFooterButtonText}>CLEAR</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.dateTimePickerFooterButton}
+                    onPress={() => setShowDateTimePicker(false)}
+                  >
+                    <Text style={[styles.dateTimePickerFooterButtonText, { color: CompactColors.textSecondary }]}>CANCEL</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.dateTimePickerFooterButton, styles.okButton]}
+                    onPress={() => setShowDateTimePicker(false)}
+                  >
+                    <Text style={[styles.dateTimePickerFooterButtonText, styles.okButtonText]}>OK</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* Time Picker Modal - Material Design 3 */}
+          <PaperProvider theme={DefaultTheme}>
+            <TimePickerModal
+              visible={showTimePicker}
+              onDismiss={() => setShowTimePicker(false)}
+              onConfirm={({ hours, minutes }) => {
+                if (editedTask?.dueDate) {
+                  const newDate = new Date(editedTask.dueDate);
+                  newDate.setHours(hours, minutes, 0, 0);
+                  setEditedTask(prev => prev ? { ...prev, dueDate: newDate } : null);
+                }
+                setShowTimePicker(false);
+              }}
+              hours={editedTask?.dueDate ? editedTask.dueDate.getHours() : 12}
+              minutes={editedTask?.dueDate ? editedTask.dueDate.getMinutes() : 0}
+              use24HourClock={false}
+            />
+          </PaperProvider>
         </View>
       </View>
     </Modal>
@@ -767,6 +1031,220 @@ const styles = StyleSheet.create({
   },
   selectedPriorityText: {
     color: '#2196F3',
+  },
+
+  // Date-Time Picker Styles
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateTimePickerContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '80%',
+    maxWidth: 340,
+    maxHeight: '90%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    overflow: 'hidden',
+    margin: 20,
+  },
+  dateTimePickerHeader: {
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  dateTimePickerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: CompactColors.text,
+    textAlign: 'center',
+  },
+  quickDateSelectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: CompactColors.border,
+  },
+  quickDateSelectionItem: {
+    alignItems: 'center',
+    minWidth: 70,
+  },
+  quickDateIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: CompactColors.surface,
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  quickDateIconText: {
+    fontSize: 14,
+    color: CompactColors.text,
+    fontWeight: '600',
+  },
+  quickDateSelectionText: {
+    fontSize: 12,
+    color: CompactColors.text,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  calendarContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  calendarNavButton: {
+    padding: 8,
+  },
+  calendarNavIcon: {
+    fontSize: 20,
+    color: CompactColors.textSecondary,
+    fontWeight: '600',
+  },
+  calendarMonthText: {
+    fontSize: 18,
+    color: CompactColors.text,
+    fontWeight: '600',
+  },
+  calendarDaysHeader: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  calendarDayHeader: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    color: CompactColors.textSecondary,
+    fontWeight: '500',
+    paddingVertical: 8,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDay: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
+  calendarDayCurrentMonth: {
+    // Default styling for current month days
+  },
+  calendarDayToday: {
+    borderWidth: 2,
+    borderColor: CompactColors.primary,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+  },
+  calendarDaySelected: {
+    backgroundColor: CompactColors.primary,
+    borderRadius: 20,
+  },
+  calendarDayText: {
+    fontSize: 14,
+    color: CompactColors.textMuted,
+    fontWeight: '500',
+  },
+  calendarDayTextCurrentMonth: {
+    color: CompactColors.text,
+  },
+  calendarDayTextToday: {
+    color: CompactColors.primary,
+    fontWeight: '600',
+  },
+  calendarDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: CompactColors.surface,
+    justifyContent: 'space-between',
+  },
+  timeRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  timeRowIcon: {
+    fontSize: 20,
+    color: CompactColors.text,
+    marginRight: 8,
+  },
+  timeRowLabel: {
+    fontSize: 14,
+    color: CompactColors.textSecondary,
+    fontWeight: '600',
+  },
+  timeRowValue: {
+    alignItems: 'flex-end',
+    minWidth: 80,
+  },
+  timeRowValueText: {
+    fontSize: 14,
+    color: CompactColors.text,
+    fontWeight: '500',
+    textAlign: 'right',
+  },
+  dateTimePickerFooter: {
+    flexDirection: 'row',
+    paddingTop: 16,
+    paddingHorizontal: 12,
+    paddingBottom: 20,
+    gap: 4,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dateTimePickerFooterButton: {
+    flex: 0,
+    minWidth: 60,
+    maxWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: CompactColors.border,
+    backgroundColor: 'transparent',
+  },
+  dateTimePickerFooterButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: CompactColors.textSecondary,
+  },
+  okButton: {
+    backgroundColor: CompactColors.primary,
+    borderColor: CompactColors.primary,
+  },
+  okButtonText: {
+    color: CompactColors.background,
+    fontWeight: '600',
   },
 });
 
