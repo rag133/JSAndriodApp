@@ -1,0 +1,60 @@
+import type { Task, List, Tag, ListFolder, TagFolder } from '../types';
+export type SortOption = 'created' | 'dueDate' | 'priority' | 'title';
+export type SortDirection = 'asc' | 'desc';
+export type FilterOption = 'all' | 'completed' | 'uncompleted' | 'overdue' | 'dueToday' | 'dueThisWeek';
+type KaryState = {
+    tasks: Task[];
+    lists: List[];
+    tags: Tag[];
+    listFolders: ListFolder[];
+    tagFolders: TagFolder[];
+    loading: boolean;
+    error: string | null;
+    searchQuery: string;
+    filterOption: FilterOption;
+    sortOption: SortOption;
+    sortDirection: SortDirection;
+    fetchKaryData: () => Promise<void>;
+    addTask: (task: Omit<Task, 'id'>) => Promise<void>;
+    updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+    deleteTask: (taskId: string) => Promise<void>;
+    addList: (list: Omit<List, 'id'>) => Promise<void>;
+    updateList: (listId: string, updates: Partial<List>) => Promise<void>;
+    deleteList: (listId: string) => Promise<void>;
+    addTag: (tag: Omit<Tag, 'id'>) => Promise<void>;
+    updateTag: (tagId: string, updates: Partial<Tag>) => Promise<void>;
+    deleteTag: (tagId: string) => Promise<void>;
+    addListFolder: (folder: Omit<ListFolder, 'id'>) => Promise<void>;
+    updateListFolder: (folderId: string, updates: Partial<ListFolder>) => Promise<void>;
+    deleteListFolder: (folderId: string) => Promise<void>;
+    addTagFolder: (folder: Omit<TagFolder, 'id'>) => Promise<void>;
+    updateTagFolder: (folderId: string, updates: Partial<TagFolder>) => Promise<void>;
+    deleteTagFolder: (folderId: string) => Promise<void>;
+    getDefaultList: () => List | null;
+    setDefaultList: (listId: string) => Promise<void>;
+    cleanupDuplicateInboxes: () => Promise<void>;
+    cleanupDuplicateLists: () => Promise<void>;
+    setSearchQuery: (query: string) => void;
+    setFilterOption: (option: FilterOption) => void;
+    setSortOption: (option: SortOption) => void;
+    setSortDirection: (direction: SortDirection) => void;
+    getFilteredAndSortedTasks: (tasks: Task[], searchQueryOverride?: string, filterOptionOverride?: FilterOption, sortOptionOverride?: SortOption, sortDirectionOverride?: SortDirection) => Task[];
+};
+export declare const useKaryStore: import("zustand").UseBoundStore<Omit<import("zustand").StoreApi<KaryState>, "setState" | "devtools"> & {
+    setState(partial: KaryState | Partial<KaryState> | ((state: KaryState) => KaryState | Partial<KaryState>), replace?: false | undefined, action?: (string | {
+        [x: string]: unknown;
+        [x: number]: unknown;
+        [x: symbol]: unknown;
+        type: string;
+    }) | undefined): void;
+    setState(state: KaryState | ((state: KaryState) => KaryState), replace: true, action?: (string | {
+        [x: string]: unknown;
+        [x: number]: unknown;
+        [x: symbol]: unknown;
+        type: string;
+    }) | undefined): void;
+    devtools: {
+        cleanup: () => void;
+    };
+}>;
+export {};

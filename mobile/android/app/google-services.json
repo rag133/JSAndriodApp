@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "65030332753",
+    "project_id": "jeevan-saathi-39bf5",
+    "storage_bucket": "jeevan-saathi-39bf5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:65030332753:android:a1b2c3d4e5f6a7b8c9d0e1f2",
+        "android_client_info": {
+          "package_name": "com.jeevansaathi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "65030332753-abc123def456ghi789jkl012mno345.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jeevansaathi",
+            "certificate_hash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
+          }
+        },
+        {
+          "client_id": "65030332753-xyz789uvw456rst123opq890lmn567.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtc3vYe6tV14w37NEJkaDfTR096fb7q1Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "65030332753-xyz789uvw456rst123opq890lmn567.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
