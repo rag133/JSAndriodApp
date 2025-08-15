@@ -253,3 +253,4 @@ Every interaction, visual element, and layout detail matches the reference image
 
 **Your Kary app now has an email-quality task management interface!** 🚀
 
+
