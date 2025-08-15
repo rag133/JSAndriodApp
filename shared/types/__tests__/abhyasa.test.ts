@@ -4,7 +4,8 @@ import {
   HabitStatus, 
   HabitTargetComparison,
   Habit,
-  HabitLog
+  HabitLog,
+  HabitFrequencyType
 } from '../abhyasa';
 
 describe('Shared Abhyasa Types', () => {
@@ -77,7 +78,7 @@ describe('Shared Abhyasa Types', () => {
         title: 'Test Habit',
         icon: '🎯',
         color: 'blue-500',
-        frequency: { type: 'daily' },
+        frequency: { type: HabitFrequencyType.DAILY },
         type: HabitType.BINARY,
         status: HabitStatus.IN_PROGRESS,
         startDate: new Date(),
@@ -96,7 +97,7 @@ describe('Shared Abhyasa Types', () => {
         title: 'Test Habit',
         icon: '🎯',
         color: 'blue-500',
-        frequency: { type: 'daily' },
+        frequency: { type: HabitFrequencyType.DAILY },
         type: HabitType.COUNT,
         status: HabitStatus.IN_PROGRESS,
         startDate: new Date(),

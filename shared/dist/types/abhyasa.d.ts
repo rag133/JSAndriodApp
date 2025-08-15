@@ -35,13 +35,20 @@ export declare enum HabitTargetComparison {
     EQUAL = "equal",
     AT_LEAST = "at_least",// Alias for GREATER_THAN_OR_EQUAL
     EXACTLY = "exactly",// Alias for EQUAL
-    ANY_VALUE = "any_value"
+    ANY_VALUE = "any_value",// Special case for any non-zero value
+    'at-least' = "at_least",
+    'less-than' = "less_than",
+    'exactly' = "exactly",
+    'any-value' = "any_value"
 }
 export declare enum HabitStatus {
     YET_TO_START = "Yet to Start",
     IN_PROGRESS = "In Progress",
     COMPLETED = "Completed",
-    ABANDONED = "Abandoned"
+    ABANDONED = "Abandoned",
+    ACTIVE = "In Progress",// Alias for IN_PROGRESS
+    PAUSED = "Yet to Start",// Alias for YET_TO_START
+    ARCHIVED = "Abandoned"
 }
 export interface Habit {
     id: string;
@@ -64,11 +71,15 @@ export interface Habit {
     startDate: Date;
     endDate?: Date;
     reminders?: string[];
+    userId?: string;
 }
 export declare enum HabitLogStatus {
     DONE = "done",
     PARTIAL = "partial",
-    NONE = "none"
+    NONE = "none",// Default when no log is entered for that day
+    COMPLETED = "done",// Alias for DONE
+    SKIPPED = "none",// Alias for NONE
+    FAILED = "none"
 }
 export interface HabitLog {
     id: string;
@@ -76,18 +87,21 @@ export interface HabitLog {
     date: string;
     value?: number;
     completedChecklistItems?: string[];
-    count?: number;
-    status?: HabitLogStatus;
     notes?: string;
     userId?: string;
     createdAt?: Date;
     updatedAt?: Date;
+    count?: number;
+    status?: HabitLogStatus;
 }
 export declare enum GoalStatus {
     NOT_STARTED = "Not Started",
     IN_PROGRESS = "In Progress",
     COMPLETED = "Completed",
-    ABANDONED = "Abandoned"
+    ABANDONED = "Abandoned",
+    ACTIVE = "In Progress",// Alias for IN_PROGRESS
+    PAUSED = "Not Started",// Alias for NOT_STARTED
+    CANCELLED = "Abandoned"
 }
 export interface Goal {
     id: string;
@@ -98,12 +112,15 @@ export interface Goal {
     status: GoalStatus;
     icon: IconName;
     focusAreaId?: string;
+    userId?: string;
 }
 export declare enum MilestoneStatus {
     NOT_STARTED = "Not Started",
     IN_PROGRESS = "In Progress",
     COMPLETED = "Completed",
-    ABANDONED = "Abandoned"
+    ABANDONED = "Abandoned",
+    PLANNED = "Not Started",// Alias for NOT_STARTED
+    CANCELLED = "Abandoned"
 }
 export interface Milestone {
     id: string;
@@ -114,10 +131,13 @@ export interface Milestone {
     targetEndDate?: Date;
     status: MilestoneStatus;
     focusAreaId?: string;
+    userId?: string;
 }
 export declare enum QuickWinStatus {
     PENDING = "Pending",
-    COMPLETED = "Completed"
+    COMPLETED = "Completed",
+    PLANNED = "Pending",// Alias for PENDING
+    CANCELLED = "Pending"
 }
 export interface QuickWin {
     id: string;
@@ -126,6 +146,7 @@ export interface QuickWin {
     dueDate?: Date;
     status: QuickWinStatus;
     createdAt: Date;
+    userId?: string;
 }
 export type AbhyasaSelection = {
     type: 'goals';
@@ -137,4 +158,6 @@ export type AbhyasaSelection = {
     type: 'all-habits';
 } | {
     type: 'quick-wins';
+} | {
+    type: 'habits';
 };

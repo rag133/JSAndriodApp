@@ -2,22 +2,32 @@
   "name": "jeevan-saathi-monorepo",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "shared",
-    "web",
-    "mobile"
-  ],
   "scripts": {
     "dev:web": "cd web && npm run dev",
     "dev:mobile": "cd mobile && npx react-native start",
+    "dev:shared": "cd shared && npm run dev",
+    "dev": "concurrently \"npm run dev:shared\" \"npm run dev:web\" \"npm run dev:mobile\"",
+    "build:shared": "cd shared && npm run build",
     "build:web": "cd web && npm run build",
     "build:mobile": "cd mobile && cd android && ./gradlew assembleDebug",
+    "build": "npm run build:shared && npm run build:web",
     "test:web": "cd web && npm test",
     "test:mobile": "cd mobile && npm test",
-    "install:all": "npm install && cd web && npm install && cd ../mobile && npm install",
-    "clean": "rimraf node_modules web/node_modules mobile/node_modules shared/node_modules"
+    "test": "npm run test:web && npm run test:mobile",
+    "install:all": "npm install && cd web && npm install && cd ../mobile && npm install && cd ../shared && npm install",
+    "clean": "rimraf node_modules web/node_modules mobile/node_modules shared/node_modules dist build",
+    "clean:all": "rimraf node_modules web/node_modules mobile/node_modules shared/node_modules dist build web/dist mobile/build",
+    "lint": "npm run lint:web && npm run lint:mobile",
+    "lint:web": "cd web && npm run lint",
+    "lint:mobile": "cd mobile && npm run lint"
   },
   "devDependencies": {
-    "rimraf": "^5.0.0"
+    "rimraf": "^5.0.0",
+    "concurrently": "^8.2.2"
+  },
+  "resolutions": {
+    "react": "19.1.0",
+    "typescript": "5.5.3",
+    "zustand": "5.0.7"
   }
 }
