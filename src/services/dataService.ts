@@ -3,6 +3,7 @@ import auth from '@react-native-firebase/auth';
 import { Task, List, Tag, ListFolder, TagFolder } from '../types/kary';
 import { Habit, HabitLog, Goal, Milestone, QuickWin } from '../types/abhyasa';
 import { Log, LogTemplate, Focus } from '../types/dainandini';
+import { dateToString } from '../utils/habitUtils';
 
 // Helper function to get current user
 const getCurrentUser = () => {
@@ -24,7 +25,16 @@ const convertTimestamps = (data: any): any => {
   const converted = { ...data };
   Object.keys(converted).forEach((key) => {
     if (converted[key]?.toDate) {
+      // This is a Firestore timestamp
       converted[key] = converted[key].toDate();
+    } else if (converted[key] && typeof converted[key] === 'object' && converted[key].constructor.name === 'Timestamp') {
+      // Handle other timestamp formats
+      try {
+        converted[key] = converted[key].toDate();
+      } catch (error) {
+        console.warn(`Failed to convert timestamp for key ${key}:`, error);
+        converted[key] = new Date(); // Fallback to current date
+      }
     } else if (Array.isArray(converted[key])) {
       converted[key] = converted[key].map((item: any) =>
         typeof item === 'object' ? convertTimestamps(item) : item
@@ -167,9 +177,15 @@ export const tagService = {
 export const habitService = {
   add: async (habitData: Omit<Habit, 'id'>): Promise<string> => {
     const user = getCurrentUser();
+    
+    // Clean up undefined values to prevent Firebase errors
+    const cleanHabitData = Object.fromEntries(
+      Object.entries(habitData).filter(([_, value]) => value !== undefined)
+    );
+    
     const habitToAdd = {
-      ...habitData,
-      startDate: habitData.startDate || new Date(),
+      ...cleanHabitData,
+      startDate: cleanHabitData.startDate || new Date(),
       userId: user.uid,
     };
     const docRef = await getUserCollection('habits').add(habitToAdd);
@@ -177,7 +193,12 @@ export const habitService = {
   },
 
   update: async (habitId: string, updates: Partial<Habit>): Promise<void> => {
-    return getUserCollection('habits').doc(habitId).update(updates);
+    // Clean up undefined values to prevent Firebase errors
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+    
+    return getUserCollection('habits').doc(habitId).update(cleanUpdates);
   },
 
   delete: async (habitId: string): Promise<void> => {
@@ -208,13 +229,38 @@ export const habitService = {
 export const habitLogService = {
   add: async (logData: Omit<HabitLog, 'id'>): Promise<string> => {
     const user = getCurrentUser();
-    const logToAdd = { ...logData, userId: user.uid };
+    
+    // Clean up undefined values to prevent Firebase errors
+    const cleanLogData = Object.fromEntries(
+      Object.entries(logData).filter(([_, value]) => value !== undefined)
+    );
+    
+    // Convert date to string format for storage (shared types compatibility)
+    const dateToStore = cleanLogData.date instanceof Date 
+      ? dateToString(cleanLogData.date)
+      : cleanLogData.date || dateToString(new Date());
+    
+    const logToAdd = { 
+      ...cleanLogData, 
+      date: dateToStore, // Store as string (YYYY-MM-DD format)
+      userId: user.uid 
+    };
     const docRef = await getUserCollection('habitLogs').add(logToAdd);
     return docRef.id;
   },
 
   update: async (logId: string, updates: Partial<HabitLog>): Promise<void> => {
-    return getUserCollection('habitLogs').doc(logId).update(updates);
+    // Clean up undefined values to prevent Firebase errors
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+    
+    // Convert date to string format if it's a Date object
+    if (cleanUpdates.date instanceof Date) {
+      cleanUpdates.date = dateToString(cleanUpdates.date);
+    }
+    
+    return getUserCollection('habitLogs').doc(logId).update(cleanUpdates);
   },
 
   delete: async (logId: string): Promise<void> => {
@@ -225,18 +271,28 @@ export const habitLogService = {
     const snapshot = await getUserCollection('habitLogs')
       .orderBy('date', 'desc')
       .get();
-    return snapshot.docs.map((doc) => 
-      convertTimestamps({ id: doc.id, ...doc.data() }) as HabitLog
-    );
+    return snapshot.docs.map((doc) => {
+      const data = convertTimestamps({ id: doc.id, ...doc.data() }) as HabitLog;
+      // Ensure date is always a string (shared types compatibility)
+      if (data.date instanceof Date) {
+        data.date = dateToString(data.date);
+      }
+      return data;
+    });
   },
 
   subscribe: (callback: (logs: HabitLog[]) => void) => {
     return getUserCollection('habitLogs')
       .orderBy('date', 'desc')
       .onSnapshot((snapshot) => {
-        const logs = snapshot.docs.map((doc) => 
-          convertTimestamps({ id: doc.id, ...doc.data() }) as HabitLog
-        );
+        const logs = snapshot.docs.map((doc) => {
+          const data = convertTimestamps({ id: doc.id, ...doc.data() }) as HabitLog;
+          // Ensure date is always a string (shared types compatibility)
+          if (data.date instanceof Date) {
+            data.date = dateToString(data.date);
+          }
+          return data;
+        });
         callback(logs);
       });
   },
@@ -245,9 +301,15 @@ export const habitLogService = {
 export const goalService = {
   add: async (goalData: Omit<Goal, 'id'>): Promise<string> => {
     const user = getCurrentUser();
+    
+    // Clean up undefined values to prevent Firebase errors
+    const cleanGoalData = Object.fromEntries(
+      Object.entries(goalData).filter(([_, value]) => value !== undefined)
+    );
+    
     const goalToAdd = {
-      ...goalData,
-      startDate: goalData.startDate || new Date(),
+      ...cleanGoalData,
+      startDate: cleanGoalData.startDate || new Date(),
       userId: user.uid,
     };
     const docRef = await getUserCollection('goals').add(goalToAdd);
@@ -255,7 +317,12 @@ export const goalService = {
   },
 
   update: async (goalId: string, updates: Partial<Goal>): Promise<void> => {
-    return getUserCollection('goals').doc(goalId).update(updates);
+    // Clean up undefined values to prevent Firebase errors
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+    
+    return getUserCollection('goals').doc(goalId).update(cleanUpdates);
   },
 
   delete: async (goalId: string): Promise<void> => {
