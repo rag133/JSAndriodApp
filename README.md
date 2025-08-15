@@ -1,11 +1,5 @@
 # Jeevan Saathi - Your Life Companion
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![React](https://img.shields.io/badge/React-18.0+-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-10.0+-orange.svg)](https://firebase.google.com/)
-[![Vite](https://img.shields.io/badge/Vite-5.0+-purple.svg)](https://vitejs.dev/)
-
 <!-- Replace with a real screenshot -->
 <div align="center">
   <img src="Jeevan_Saathi_Logo.png" alt="Jeevan Saathi Logo" width="200"/>
